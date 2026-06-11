@@ -1,0 +1,24 @@
+{
+  "preset_name": "sound_design_first",
+  "description": "No music for 8s — engines, crowd, city ambience. Music drops hard on first driving shot.",
+  "assembly": {
+    "target_duration_sec": 30,
+    "avg_cut_sec": 2.0,
+    "hero_cut_sec": 5.0,
+    "quick_cut_sec": 1.0,
+    "open_with": "static_wide_silent",
+    "music_drop_at_beat": "beat_03",
+    "close_with": "hero_driving",
+    "pattern": "ambient_open_music_drop"
+  },
+  "sound": {
+    "open": "sfx_only",
+    "sfx_duration_sec": 8,
+    "sfx": ["engine_idle", "crowd_murmur", "city_ambience", "door_click"],
+    "music_entry": "hard_drop",
+    "music_style": "cinematic_swell",
+    "diegetic": "featured_pre_music"
+  },
+  "pacing": { "rhythm": "tension_then_release", "music_led": false },
+  "tone": { "energy": "building_to_epic", "cinematic": true, "prestige": true }
+}

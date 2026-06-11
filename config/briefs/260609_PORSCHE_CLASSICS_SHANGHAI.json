@@ -1,0 +1,102 @@
+{
+  "brief_id": "260609_PORSCHE_CLASSICS_SHANGHAI",
+  "client": {
+    "name": "Porsche China",
+    "type": "automotive",
+    "notes": "Internal milestone film. Contact: Michael. Townhall/year-end meeting. Historic significance: first classic cars permitted on public roads in mainland China. Tone: documentary/statement — NOT over-enthusiastic or dramatic."
+  },
+  "project_title": "Porsche Classics — Shanghai Trial Run 2026",
+  "style_preset": "cinematic_milestone",
+  "concept": {
+    "logline": "A quiet statement of a historic day — classic Porsches on the streets of Shanghai for the first time.",
+    "tone": "documentary, understated, statement-of-the-day — NOT dramatic, NOT over-enthusiastic",
+    "pov": "observational b-roll — no presenter, music-led",
+    "references": [
+      "https://youtu.be/xpkBugRmDrA",
+      "https://youtu.be/QXkkK8eJbXc",
+      "https://youtu.be/GgMwzTmsTwI"
+    ]
+  },
+  "beats": [
+    {
+      "id": "beat_01",
+      "label": "Gathering",
+      "description": "Cars and owners arriving, assembling. The calm before. People getting ready, cars being prepared. Sets the human/personal tone before the drive.",
+      "type": "real_footage",
+      "duration_target_sec": 6,
+      "must_include": ["cars gathering or parked together", "owners or people present"],
+      "no_go": [
+        "blue 997 Speedster with RWB elements — no close-ups of this car",
+        "shaky handheld",
+        "overexposed"
+      ]
+    },
+    {
+      "id": "beat_02",
+      "label": "Getting Ready",
+      "description": "Preparation moments — drivers getting in, engines starting, last checks. The anticipation before hitting the road.",
+      "type": "real_footage",
+      "duration_target_sec": 6,
+      "must_include": ["driver or person interacting with car", "sense of preparation or anticipation"],
+      "no_go": [
+        "blue 997 Speedster with RWB elements — no close-ups",
+        "rushed or chaotic shots"
+      ]
+    },
+    {
+      "id": "beat_03",
+      "label": "On The Road — The Milestone",
+      "description": "The historic moment. Cars driving on Shanghai public roads. This is the heart of the film. Multiple angles — wide convoy shots, road-level, Shanghai landmarks visible. Documentary, not dramatic.",
+      "type": "real_footage",
+      "duration_target_sec": 12,
+      "must_include": [
+        "cars in motion on public Shanghai road",
+        "Shanghai context clearly visible — signs, architecture, skyline",
+        "convoy or multiple cars together if available"
+      ],
+      "no_go": [
+        "blue 997 Speedster with RWB close-ups",
+        "shots without Shanghai context",
+        "overly dramatic angles — keep it observational"
+      ]
+    },
+    {
+      "id": "beat_04",
+      "label": "Finishing at Porsche Center",
+      "description": "Cars arriving at or finishing at the Porsche Center. The conclusion of the drive. Could include people reacting, cars parked at the centre.",
+      "type": "real_footage",
+      "duration_target_sec": 6,
+      "must_include": ["Porsche Center visible if possible", "sense of arrival or completion"],
+      "no_go": ["blue 997 Speedster with RWB close-ups"]
+    }
+  ],
+  "deliverables": [
+    {
+      "label": "Main edit",
+      "format": "16:9",
+      "duration_sec": 30,
+      "platform": "Internal — townhall / year-end meeting",
+      "notes": "First draft by 12 June. Final by 18 June."
+    }
+  ],
+  "assets": {
+    "footage_folders": [
+      "/Volumes/TFC/1) WORK IN PROGRESS/260609_PORSCHE_CLASSICS_SHANGHAI/3. MEDIA/VIDEO/CLIENT PROVIDED/PORSCHE-CLASSICS-SHANGHAI"
+    ],
+    "transcript_files": [],
+    "graphics_pack": "",
+    "music_brief": "Understated, calm, documentary feel. NOT cinematic drama or EDM. Something that feels like a quiet historic moment — sparse piano or light orchestral. Should feel like a statement, not a celebration.",
+    "audio_notes": "FX3 sync audio available on all clips — engine sounds, Shanghai ambience, crowd. Use diegetic audio mixed under music for documentary feel. Open with ambient sound before music comes in if possible.",
+    "existing_assets": ["Photos to be sent by Michael — request confirmed"]
+  },
+  "vision_no_go": [
+    "blue 997 Speedster with RWB (wide-body kit) elements — flag any close-up of this car for removal",
+    "shots without Shanghai context for road beats",
+    "overexposed or technically unusable"
+  ],
+  "few_shot_examples": [],
+  "outcome_tag": "pending",
+  "created_at": "2026-06-10T00:00:00Z",
+  "project_folder": "/Volumes/TFC/1) WORK IN PROGRESS/260609_PORSCHE_CLASSICS_SHANGHAI",
+  "client_notes": "Michael: documentary/statement tone, not over-enthusiastic. Footage covers: gathering, getting ready, driving, finishing at Porsche Center. Blue 997 Speedster with RWB mods is in the footage — do NOT close-up on it. Photos to follow from client."
+}

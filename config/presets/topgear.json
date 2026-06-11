@@ -1,0 +1,63 @@
+{
+  "preset_name": "topgear",
+  "description": "TFC house style for character-led, dry-humour brand films. Based on Top Gear editorial language.",
+  "pacing": {
+    "avg_cut_duration_sec": 4,
+    "max_hold_sec": 8,
+    "opening_hold_sec": 3,
+    "preferred_rhythm": "build_to_payoff",
+    "breathing_room": true
+  },
+  "tone": {
+    "humour": "dry",
+    "energy": "building",
+    "presenter_led": true,
+    "authentic_over_polished": true,
+    "self_aware": true,
+    "warmth": "understated"
+  },
+  "transitions": {
+    "preferred": ["cut", "whip_pan"],
+    "avoid": ["dissolve", "speed_ramp", "jump_cut"],
+    "match_cut_on_action": true
+  },
+  "sound_defaults": {
+    "music_bed": "understated_building",
+    "canned_laugh": true,
+    "air_horn_style": "village_fete_not_f1",
+    "silence_as_tool": true,
+    "diegetic_sound_priority": true
+  },
+  "scoring_weights": {
+    "relevance_to_brief": 0.4,
+    "energy_level": 0.2,
+    "humour_potential": 0.2,
+    "usability": 0.2
+  },
+  "clip_selection_rules": [
+    "prefer_first_take_energy_over_polished_retake",
+    "flag_genuine_reactions_over_performed",
+    "presenter_stumble_can_be_gold",
+    "ambient_sound_worth_keeping",
+    "prefer_wide_over_close_for_opening"
+  ],
+  "no_go_rules": [
+    "no_slow_motion",
+    "no_drone_shots",
+    "no_speed_ramp",
+    "no_jump_cuts",
+    "no_over_produced_grade",
+    "no_inspirational_music",
+    "no_corporate_testimonials",
+    "no_scripted_customer_reactions",
+    "no_stock_footage"
+  ],
+  "ai_prompt_style": {
+    "tone": "dry, British, slightly absurdist",
+    "aesthetic": "filmic over viral",
+    "avoid_in_prompts": ["epic", "stunning", "cinematic", "powerful", "emotional journey"]
+  },
+  "training_examples": [
+    "config/briefs/example_cc_insurance_2026.json"
+  ]
+}

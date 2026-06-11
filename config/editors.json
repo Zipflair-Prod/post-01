@@ -1,0 +1,60 @@
+{
+  "workspace_url": "haydn@thefilmcrew.co",
+  "default_editors": ["haydn"],
+  "editors": {
+    "haydn": {
+      "name": "Haydn Robinson",
+      "email": "haydn@thefilmcrew.co",
+      "role": "owner",
+      "specialties": ["all"],
+      "bm_cloud_email": "haydn@thefilmcrew.co",
+      "always_invite": true,
+      "bm_cloud_workspace": "haydn@thefilmcrew.co"
+    },
+    "ryan": {
+      "name": "Ryan",
+      "email": "",
+      "role": "editor",
+      "specialties": ["automotive", "motorsport", "sport", "corporate", "lifestyle"],
+      "bm_cloud_email": "",
+      "always_invite": false,
+      "notes": "General all-rounder"
+    },
+    "alex": {
+      "name": "Alex",
+      "email": "",
+      "role": "editor",
+      "specialties": ["luxury", "yacht", "automotive", "lifestyle", "corporate"],
+      "bm_cloud_email": "",
+      "always_invite": false,
+      "notes": "Luxury, yachts, high-end lifestyle"
+    },
+    "bobby": {
+      "name": "Bobby",
+      "email": "",
+      "role": "editor",
+      "specialties": ["automotive", "motorsport", "sport"],
+      "bm_cloud_email": "",
+      "always_invite": false,
+      "notes": "Automotive and motorsport specialist"
+    },
+    "jasper": {
+      "name": "Jasper",
+      "email": "",
+      "role": "editor",
+      "specialties": ["luxury", "yacht", "automotive", "lifestyle"],
+      "bm_cloud_email": "",
+      "always_invite": false,
+      "notes": "Luxury, yachts, high-end lifestyle"
+    },
+    "joe": {
+      "name": "Joe",
+      "email": "",
+      "role": "editor",
+      "specialties": ["automotive", "motorsport", "sport"],
+      "bm_cloud_email": "",
+      "always_invite": false,
+      "notes": "Automotive and motorsport specialist"
+    }
+  }
+}

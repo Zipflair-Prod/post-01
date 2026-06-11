@@ -1,0 +1,23 @@
+{
+  "preset_name": "fast_cut_to_hold",
+  "description": "Quick 0.5s detail cuts — badges, wheels, hands — then hold on hero convoy shot. Repeat.",
+  "assembly": {
+    "target_duration_sec": 30,
+    "avg_cut_sec": 0.6,
+    "hero_cut_sec": 4.0,
+    "quick_cut_sec": 0.5,
+    "open_with": "detail_close_up",
+    "close_with": "hero_wide",
+    "pattern": "burst_then_hold",
+    "burst_count": 6,
+    "hold_every_n_bursts": 1
+  },
+  "sound": {
+    "open": "music_immediate",
+    "music_style": "driving_rhythmic",
+    "diegetic": "subtle_under_music",
+    "sfx": ["tyre_squeal", "engine_rev", "door_close"]
+  },
+  "pacing": { "rhythm": "burst_hold_burst_hold", "music_led": true },
+  "tone": { "energy": "high_building", "cinematic": true, "prestige": true }
+}

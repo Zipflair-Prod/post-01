@@ -1,0 +1,23 @@
+{
+  "preset_name": "single_take_feel",
+  "description": "Feels like one continuous journey. Wide → mid → close → wide. Observational, not produced.",
+  "assembly": {
+    "target_duration_sec": 30,
+    "avg_cut_sec": 2.5,
+    "hero_cut_sec": 4.0,
+    "quick_cut_sec": 1.5,
+    "open_with": "wide_establishing",
+    "close_with": "wide_arrival",
+    "pattern": "wide_mid_close_wide",
+    "shot_progression": ["wide", "mid", "close_up", "wide", "mid", "hero_wide"]
+  },
+  "sound": {
+    "open": "ambient_only",
+    "ambient_duration_sec": 3,
+    "music_entry": "gentle_fade",
+    "music_style": "sparse_ambient",
+    "diegetic": "continuous_under_music"
+  },
+  "pacing": { "rhythm": "continuous_flow", "music_led": false },
+  "tone": { "energy": "calm_confident", "documentary": true, "authentic_over_polished": true, "prestige": true }
+}

@@ -1,0 +1,23 @@
+{
+  "preset_name": "city_context_led",
+  "description": "Shanghai opens first — architecture, streets, signs. Cars enter the city. City is the character.",
+  "assembly": {
+    "target_duration_sec": 30,
+    "avg_cut_sec": 2.5,
+    "hero_cut_sec": 4.0,
+    "quick_cut_sec": 1.5,
+    "open_with": "landmark_wide",
+    "close_with": "cars_in_city_context",
+    "pattern": "city_then_cars",
+    "prioritise_flags": ["LANDMARK_VISIBILITY", "URBAN_CONTEXT"]
+  },
+  "sound": {
+    "open": "ambient_city",
+    "ambient_duration_sec": 4,
+    "music_entry": "gentle_fade_in",
+    "music_style": "understated_orchestral",
+    "diegetic": "city_ambience_prominent"
+  },
+  "pacing": { "rhythm": "observational", "music_led": false },
+  "tone": { "energy": "calm_confident", "documentary": true, "authentic_over_polished": true }
+}

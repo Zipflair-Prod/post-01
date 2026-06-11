@@ -1,0 +1,7 @@
+{
+  "qnap_base": "/Volumes/TFCPOST01",
+  "project_root": "/Users/haydn/post-01",
+  "default_preset": "topgear",
+  "frame_rate": 25,
+  "davinci_scripting": false
+}

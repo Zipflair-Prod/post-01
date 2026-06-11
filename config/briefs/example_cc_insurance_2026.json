@@ -1,0 +1,86 @@
+{
+  "brief_id": "CC_INSURANCE_2026_01",
+  "client": {
+    "name": "C&C Insurance",
+    "type": "corporate",
+    "notes": "Straight-talking insurance brand. Hates corporate speak."
+  },
+  "project_title": "C&C Insurance — Brand Film 2026",
+  "style_preset": "topgear",
+  "concept": {
+    "logline": "Insurance that treats you like a grown-up — no jargon, no drama, just sorted.",
+    "tone": "dry, warm, confident",
+    "pov": "presenter-led with observational cutaways",
+    "references": ["Top Gear S20E04", "Old Spice 2010 campaign", "Comparethemarket 2019"]
+  },
+  "beats": [
+    {
+      "id": "beat_01",
+      "label": "The Hook",
+      "description": "Open on the absurdity of typical insurance ads. Presenter calls it out.",
+      "type": "real_footage",
+      "duration_target_sec": 20,
+      "must_include": ["presenter to camera", "insurance frustration moment"],
+      "no_go": ["slow motion", "inspirational music"]
+    },
+    {
+      "id": "beat_02",
+      "label": "The Problem",
+      "description": "Real customer moment — the claim call, the paperwork, the hold music.",
+      "type": "real_footage",
+      "duration_target_sec": 30,
+      "must_include": [],
+      "no_go": []
+    },
+    {
+      "id": "beat_03",
+      "label": "The C&C Difference",
+      "description": "Show not tell — quick, simple, sorted. Presenter explains in plain English.",
+      "type": "real_footage",
+      "duration_target_sec": 40,
+      "must_include": ["product demo or explainer", "presenter payoff line"],
+      "no_go": ["corporate testimonials", "scripted customer reactions"]
+    },
+    {
+      "id": "beat_04",
+      "label": "The Payoff",
+      "description": "Punchline. Leaves the viewer feeling smart for choosing C&C.",
+      "type": "real_footage",
+      "duration_target_sec": 15,
+      "must_include": ["logo end card"],
+      "no_go": []
+    }
+  ],
+  "deliverables": [
+    {
+      "label": "Hero film",
+      "format": "16:9",
+      "duration_sec": 120,
+      "platform": "YouTube / website",
+      "notes": "Full edit"
+    },
+    {
+      "label": "Social cut",
+      "format": "9:16",
+      "duration_sec": 30,
+      "platform": "Instagram Reels / TikTok",
+      "notes": "Hook in first 3 seconds"
+    }
+  ],
+  "assets": {
+    "footage_folders": ["/TFCPOST01/Projects/CC_Insurance_2026/Footage"],
+    "transcript_files": [
+      "/TFCPOST01/Projects/CC_Insurance_2026/Transcripts/shoot_day1.json",
+      "/TFCPOST01/Projects/CC_Insurance_2026/Transcripts/shoot_day2.json",
+      "/TFCPOST01/Projects/CC_Insurance_2026/Transcripts/presenter_vt.json",
+      "/TFCPOST01/Projects/CC_Insurance_2026/Transcripts/interviews.json"
+    ],
+    "graphics_pack": "/TFCPOST01/Projects/CC_Insurance_2026/Assets/Graphics",
+    "music_brief": "Understated building track — think Gomez, not Hans Zimmer",
+    "existing_assets": []
+  },
+  "few_shot_examples": [],
+  "outcome_tag": "pending",
+  "created_at": "2026-05-27T00:00:00Z",
+  "project_folder": "/TFCPOST01/Projects/CC_Insurance_2026"
+}

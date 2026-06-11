@@ -1,0 +1,124 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "POST-01 Production Brief",
+  "description": "Standard brief schema for all TFC projects. Every brief fed to POST-01 must conform to this structure.",
+  "type": "object",
+  "required": ["brief_id", "client", "project_title", "style_preset", "concept", "beats", "deliverables"],
+  "properties": {
+    "brief_id": {
+      "type": "string",
+      "description": "Unique identifier e.g. CC_INSURANCE_2026_01"
+    },
+    "client": {
+      "type": "object",
+      "required": ["name", "type"],
+      "properties": {
+        "name": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["corporate", "automotive", "charity", "entertainment", "sport", "lifestyle", "other"]
+        },
+        "notes": { "type": "string" }
+      }
+    },
+    "project_title": { "type": "string" },
+    "style_preset": {
+      "type": "string",
+      "description": "Name of the style preset JSON to load e.g. topgear"
+    },
+    "concept": {
+      "type": "object",
+      "required": ["logline", "tone", "pov"],
+      "properties": {
+        "logline": {
+          "type": "string",
+          "description": "One sentence describing what this film is"
+        },
+        "tone": { "type": "string" },
+        "pov": { "type": "string", "description": "Presenter-led, VO, observational, etc." },
+        "references": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Reference films, episodes, or content"
+        }
+      }
+    },
+    "beats": {
+      "type": "array",
+      "description": "Ordered list of narrative beats. Every scored clip will be assigned to one of these.",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "description", "type"],
+        "properties": {
+          "id": { "type": "string", "description": "Short slug e.g. beat_01" },
+          "label": { "type": "string", "description": "Human-readable beat name e.g. The Hook" },
+          "description": { "type": "string", "description": "What this beat needs to achieve" },
+          "type": {
+            "type": "string",
+            "enum": ["real_footage", "ai_generated", "mixed", "titles", "music_only"]
+          },
+          "duration_target_sec": { "type": "number" },
+          "must_include": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Specific moments, people, or lines that must appear in this beat"
+          },
+          "no_go": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "deliverables": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["label", "format", "duration_sec", "platform"],
+        "properties": {
+          "label": { "type": "string" },
+          "format": { "type": "string", "enum": ["16:9", "9:16", "1:1", "4:5"] },
+          "duration_sec": { "type": "number" },
+          "platform": { "type": "string" },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "assets": {
+      "type": "object",
+      "properties": {
+        "footage_folders": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "QNAP paths to footage folders"
+        },
+        "transcript_files": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Paths to transcript JSON files"
+        },
+        "graphics_pack": { "type": "string" },
+        "music_brief": { "type": "string" },
+        "existing_assets": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "few_shot_examples": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Paths to archived brief JSONs to include as few-shot examples when scoring"
+    },
+    "outcome_tag": {
+      "type": "string",
+      "enum": ["delivered_clean", "required_revisions", "award_winning", "client_loved_it", "pending"],
+      "description": "Set after delivery. Used to weight few-shot example selection."
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "project_folder": {
+      "type": "string",
+      "description": "QNAP project root path"
+    }
+  }
+}

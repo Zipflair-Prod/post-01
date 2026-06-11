@@ -1,0 +1,22 @@
+{
+  "preset_name": "quiet_epic",
+  "description": "Slow build, ambient open, single piano, wide shots held long. Porsche heritage style.",
+  "assembly": {
+    "target_duration_sec": 30,
+    "avg_cut_sec": 3.5,
+    "hero_cut_sec": 5.0,
+    "quick_cut_sec": 2.0,
+    "open_with": "wide_establishing",
+    "close_with": "hero_wide",
+    "pattern": "slow_build"
+  },
+  "sound": {
+    "open": "ambient_only",
+    "ambient_duration_sec": 6,
+    "music_entry": "fade_in_under",
+    "music_style": "single_piano_sparse",
+    "diegetic": "prominent"
+  },
+  "pacing": { "rhythm": "slow_build_to_payoff", "music_led": true },
+  "tone": { "energy": "calm_building", "documentary": true, "prestige": true }
+}

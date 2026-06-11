@@ -1,0 +1,69 @@
+{
+  "preset_name": "cinematic_milestone",
+  "description": "TFC preset for prestige milestone and heritage films. Music-led, b-roll driven, no presenter. Think Porsche heritage, Le Mans, brand anniversary content.",
+  "pacing": {
+    "avg_cut_duration_sec": 5,
+    "max_hold_sec": 8,
+    "opening_hold_sec": 4,
+    "preferred_rhythm": "slow_build_to_payoff",
+    "breathing_room": true,
+    "music_led": true
+  },
+  "tone": {
+    "humour": "none",
+    "energy": "calm_building",
+    "presenter_led": false,
+    "authentic_over_polished": true,
+    "prestige": true,
+    "cinematic": true,
+    "documentary": true,
+    "avoid": ["over-enthusiastic", "dramatic", "action-movie energy", "EDM pacing"]
+  },
+  "transitions": {
+    "preferred": ["cut", "match_cut_on_motion"],
+    "avoid": ["dissolve", "wipe", "jump_cut", "speed_ramp"],
+    "match_cut_on_action": true
+  },
+  "sound_defaults": {
+    "music_bed": "cinematic_prestige_building",
+    "canned_laugh": false,
+    "diegetic_sound": "subtle_under_music",
+    "silence_as_tool": false
+  },
+  "scoring_weights": {
+    "relevance_to_brief": 0.35,
+    "visual_quality": 0.35,
+    "energy_level": 0.15,
+    "usability": 0.15
+  },
+  "clip_selection_rules": [
+    "prefer_wide_establishing_for_opening",
+    "prefer_motion_over_static",
+    "prefer_golden_hour_or_dramatic_light",
+    "hero_shot_for_closing_beat",
+    "details_and_close_ups_for_middle_beats",
+    "prioritise_cars_in_urban_context",
+    "landmark_visibility_adds_value"
+  ],
+  "vision_scoring_emphasis": [
+    "look_for_shanghai_landmarks_in_frame",
+    "prefer_multiple_cars_in_single_frame",
+    "prioritise_motion_blur_on_wheels_good",
+    "badge_and_detail_shots_high_value",
+    "dramatic_sky_or_light_adds_score",
+    "cars_on_road_not_parked_preferred"
+  ],
+  "no_go_rules": [
+    "no_shaky_handheld",
+    "no_overexposed_sky",
+    "no_static_parked_shots_for_road_beats",
+    "no_people_in_shot_without_clearance",
+    "no_competitor_vehicles_prominent"
+  ],
+  "ai_prompt_style": {
+    "tone": "cinematic, prestigious, heritage",
+    "aesthetic": "Porsche heritage film — clean, wide, dramatic light",
+    "avoid_in_prompts": ["cartoon", "illustration", "anime", "low quality", "amateur"]
+  },
+  "training_examples": []
+}
