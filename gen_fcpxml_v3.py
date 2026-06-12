@@ -111,7 +111,7 @@ def car_key(clip):
     return f"{colour}-{model}" if colour else model
 
 # ── FCPXML writer ─────────────────────────────────────────────────────────────
-def write_fcpxml(pass_name, timeline_clips, out_dir):
+def write_fcpxml(pass_name, timeline_clips, out_dir, verbose=False):
     if not timeline_clips:
         print(f"  [{pass_name}] no clips — skipped")
         return
@@ -126,7 +126,14 @@ def write_fcpxml(pass_name, timeline_clips, out_dir):
             print(f"  MISSING proxy: {clip['clip_id']}")
             continue
         src_dur = proxy_duration(px)
-        start_in, use_dur = best_start(clip, src_dur, want_dur)
+        # want_dur=0 means use full clip
+        if want_dur == 0:
+            start_in, use_dur = 0.0, src_dur
+        else:
+            start_in, use_dur = best_start(clip, src_dur, want_dur)
+        if verbose:
+            cars = " | ".join([f"{c.get('colour','')} {c.get('model','')}" for c in clip.get("cars",[]) if c.get("colour")])
+            print(f"    {clip_num(clip)} {clip.get('shot_type','')[:4]} {use_dur:.1f}s  {cars[:50]}")
         aid = f"r{abs(hash(clip['clip_id'])) % 99991}"
         url = "file://" + str(px).replace(" ", "%20")
 
@@ -434,19 +441,23 @@ def main():
     scene6 = pick(STATIC_WIDE, 1, used, 4.0)
 
     story = scene1 + scene2 + scene3 + scene4 + scene5 + scene6
-    write_fcpxml("PCS_STORY", story, OUT_DIR)
+    print(f"\nPCS_STORY breakdown:")
+    print(f"  S1 drive open:  {len(scene1)} clips")
+    print(f"  S2 car intros:  {len(scene2)} clips ({len(car_order)} unique cars)")
+    print(f"  S3 multi-car:   {len(scene3)} clips")
+    print(f"  S4 people:      {len(scene4)} clips")
+    print(f"  S5 road:        {len(scene5)} clips")
+    print(f"  S6 hero hold:   {len(scene6)} clips")
+    write_fcpxml("PCS_STORY", story, OUT_DIR, verbose=True)
 
     # ── TALKING CUT — all people clips in shoot order ────────────────────────
     talking = sorted(
         [c for c in usable if c.get("people", False)],
         key=lambda c: int(clip_num(c))
     )
-    talking_tl = []
-    for c in talking:
-        ws = c.get("best_window_start_sec", 0)
-        we = c.get("best_window_end_sec", 5)
-        talking_tl.append((c, max(3.0, we - ws)))
-    write_fcpxml("TALKING_ALL", talking_tl, OUT_DIR)
+    # want_dur=0 → full clip
+    talking_tl = [(c, 0) for c in talking]
+    write_fcpxml("TALKING_ALL", talking_tl, OUT_DIR, verbose=True)
 
     # Also generate the 30s documentary cut for Michael
     used_doc = set()
