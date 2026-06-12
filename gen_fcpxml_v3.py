@@ -337,6 +337,61 @@ def main():
     p3_reel = build_pass3(usable_sorted, reel_beats)
     write_fcpxml("P3_REEL", p3_reel, OUT_DIR)
 
+    # ── P4: 1-MIN BEST OF — cars only, max variety ───────────────────────────
+    # Every car model/colour gets its moment. No people. Mix of wide/mid/detail.
+    # ~60s target. No repeat of same car key back-to-back.
+    car_only = [c for c in usable_sorted
+                if not c.get("people", False)
+                and c.get("cars") and len(c["cars"]) > 0]
+
+    # Build ordered list ensuring car variety — cycle through unique car keys
+    from collections import defaultdict
+    by_car = defaultdict(list)
+    for c in car_only:
+        ck = car_key(c)
+        by_car[ck].append(c)
+
+    # Sort each car's clips by best_window_score
+    for ck in by_car:
+        by_car[ck].sort(key=lambda c: c.get("best_window_score", 0), reverse=True)
+
+    # Round-robin through cars, mix shot types per car (wide then detail)
+    car_keys_sorted = sorted(by_car.keys(), key=lambda k: -by_car[k][0].get("best_window_score", 0))
+    p4, used_p4, total_p4 = [], set(), 0.0
+    target_p4 = 62.0
+
+    # First pass: one best clip per car
+    for ck in car_keys_sorted:
+        if total_p4 >= target_p4:
+            break
+        for c in by_car[ck]:
+            if c["clip_id"] not in used_p4:
+                st = c.get("shot_type", "mid")
+                d  = 3.0 if st == "wide" else 2.0 if st == "mid" else 1.5
+                p4.append((c, d))
+                used_p4.add(c["clip_id"])
+                total_p4 += d
+                break
+
+    # Second pass: fill remaining time with detail shots of same cars
+    for ck in car_keys_sorted:
+        if total_p4 >= target_p4:
+            break
+        for c in by_car[ck]:
+            if c["clip_id"] not in used_p4 and c.get("shot_type") in ("detail", "close"):
+                p4.append((c, 1.5))
+                used_p4.add(c["clip_id"])
+                total_p4 += 1.5
+                break
+
+    # Trim last clip to hit ~60s
+    if p4:
+        acc = sum(d for _, d in p4[:-1])
+        last_c, _ = p4[-1]
+        p4[-1] = (last_c, max(1.5, 60.0 - acc))
+
+    write_fcpxml("P4_BESTOF_1MIN", p4, OUT_DIR)
+
     # ── Car inventory ─────────────────────────────────────────────────────────
     print(f"\nCar inventory (curated clips only):")
     car_counts = {}
