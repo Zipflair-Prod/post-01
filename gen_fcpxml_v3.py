@@ -90,10 +90,10 @@ def normalise_model(model):
 
 def car_key(clip):
     """Colour + normalised model — used to enforce variety."""
-    cars = clip.get("cars", [])
+    cars = [c for c in clip.get("cars", []) if c.get("colour") or c.get("model")]
     if not cars: return None
     c = cars[0]
-    colour = c.get("colour", "").lower().split()[0]  # just first word: "navy blue" → "navy"
+    colour = c.get("colour", "").lower().split()[0]
     model  = normalise_model(c.get("model", ""))
     return f"{colour}-{model}" if colour else model
 
@@ -345,10 +345,12 @@ def main():
 
     write_fcpxml("P2_SELECTS", p2, OUT_DIR)
 
-    # Helper: pick best N clips from a pool, no repeats, no consecutive same car
+    # Helper: pick N clips from a pool in shoot order, no repeats, no consecutive same car
     def pick(pool_ids, n, used, dur, enforce_car_variety=False):
-        pool = [c for c in usable_sorted
-                if clip_num(c) in pool_ids and c["clip_id"] not in used]
+        pool = sorted(
+            [c for c in usable if clip_num(c) in pool_ids and c["clip_id"] not in used],
+            key=lambda c: int(clip_num(c))   # chronological
+        )
         result, last_ck = [], None
         for c in pool:
             if len(result) >= n: break
@@ -445,15 +447,13 @@ def main():
     car_order = sorted(by_car.keys())
     s3 = []
     for ck in car_order:
-        # Best wide of this car (by score)
-        best_wide = sorted(by_car[ck]["wide"],
-                           key=lambda c: c.get("best_window_score",0), reverse=True)
+        # Best wide of this car (chronological within car)
+        best_wide = sorted(by_car[ck]["wide"], key=lambda c: int(clip_num(c)))
         for c in best_wide:
             if c["clip_id"] not in used_p4:
                 s3.append((c, 2.0)); used_p4.add(c["clip_id"]); break
         # Best detail of this car
-        best_det = sorted(by_car[ck]["detail"],
-                          key=lambda c: c.get("best_window_score",0), reverse=True)
+        best_det = sorted(by_car[ck]["detail"], key=lambda c: int(clip_num(c)))
         for c in best_det:
             if c["clip_id"] not in used_p4:
                 s3.append((c, 1.5)); used_p4.add(c["clip_id"]); break
