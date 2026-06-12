@@ -433,6 +433,45 @@ def main():
     print(f"  Remainder:      {len(scene_remainder)} clips")
     write_fcpxml("PCS_STORY", story, OUT_DIR, verbose=True)
 
+    # ── PCS_SHORT: 30-60s compressed version of STORY ────────────────────────
+    # Same 6 scenes, tighter cuts, top 10 rarest cars only
+    used_s = set()
+
+    ss1 = pick(DRIVING_CLIPS, 2, used_s, 2.0)
+
+    # Car intros — rarest 10 cars, wide 2s + detail 1s
+    short_car_clips = [c for c in usable
+                       if not c.get("people", False) and c["clip_id"] not in used_s]
+    by_car_s = defaultdict(lambda: {"wide": [], "detail": []})
+    for c in short_car_clips:
+        ck = car_key(c)
+        if not ck: continue
+        st = c.get("shot_type", "mid")
+        bucket = "detail" if st in ("detail", "close") else "wide"
+        by_car_s[ck][bucket].append(c)
+    for ck in by_car_s:
+        by_car_s[ck]["wide"].sort(key=lambda c: int(clip_num(c)))
+        by_car_s[ck]["detail"].sort(key=lambda c: int(clip_num(c)))
+
+    # Top 10 rarest only
+    car_order_s = sorted(by_car_s.keys(), key=lambda k: colour_score(k.split("-")[0]))[:10]
+    ss2 = []
+    for ck in car_order_s:
+        for c in by_car_s[ck]["wide"]:
+            if c["clip_id"] not in used_s:
+                ss2.append((c, 2.0)); used_s.add(c["clip_id"]); break
+        for c in by_car_s[ck]["detail"]:
+            if c["clip_id"] not in used_s:
+                ss2.append((c, 1.0)); used_s.add(c["clip_id"]); break
+
+    ss3 = pick(STATIC_WIDE,   1, used_s, 2.0)
+    ss4 = pick(PEOPLE_ONLY,   1, used_s, 1.5) + pick(PEOPLE_CARS, 1, used_s, 1.5)
+    ss5 = pick(DRIVING_CLIPS, 3, used_s, 2.0)
+    ss6 = pick(STATIC_WIDE,   1, used_s, 4.0)
+
+    short = ss1 + ss2 + ss3 + ss4 + ss5 + ss6
+    write_fcpxml("PCS_SHORT", short, OUT_DIR, verbose=True)
+
     # ── TALKING CUT — all people clips in shoot order ────────────────────────
     talking = sorted(
         [c for c in usable if c.get("people", False)],
@@ -474,10 +513,10 @@ def main():
     print(f"\nAll done — FCPXMLs in AI folder")
     print(f"  P1_ALL     — full selects, shoot order (includes RWB)")
     print(f"  P2_SELECTS — ~6 min variety selects")
-    print(f"  PCS_STORY  — main story edit: drive open → each car → lineup → people → road → hero")
+    print(f"  PCS_STORY  — full story edit")
+    print(f"  PCS_SHORT  — 30-60s compressed: drive → top 10 cars → people → road → hero")
+    print(f"  TALKING_ALL — all people clips full duration")
     print(f"  P3_DOC     — 30s documentary cut for Michael")
-    print(f"  P3_DOC    — 30s documentary (Michael's brief)")
-    print(f"  P3_REEL   — 30s social/director's cut")
 
 
 if __name__ == "__main__":
