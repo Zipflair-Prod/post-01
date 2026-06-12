@@ -358,135 +358,102 @@ def main():
 
     write_fcpxml("P2_SELECTS", p2, OUT_DIR)
 
-    # Helper: pick N clips from a pool in shoot order, no repeats, no consecutive same car
-    def pick(pool_ids, n, used, dur, enforce_car_variety=False):
+    from collections import defaultdict
+
+    def pick(pool_ids, n, used, dur):
+        """Pick n clips from pool in shoot order, no repeats."""
         pool = sorted(
             [c for c in usable if clip_num(c) in pool_ids and c["clip_id"] not in used],
-            key=lambda c: int(clip_num(c))   # chronological
+            key=lambda c: int(clip_num(c))
         )
-        result, last_ck = [], None
+        result = []
         for c in pool:
             if len(result) >= n: break
-            ck = car_key(c)
-            if enforce_car_variety and ck and ck == last_ck:
-                continue
             result.append((c, dur))
             used.add(c["clip_id"])
-            last_ck = ck
         return result
 
-    # ── P3_DOC: 30s documentary ──────────────────────────────────────────────
-    # Scene 1 (0-3s)  : Shanghai city — 1 wide establishing
-    # Scene 2 (3-8s)  : Gathering — 1 people-only + 1 people-with-cars
-    # Scene 3 (8-17s) : Cars — 3 statics (different cars) + 1 detail
-    # Scene 4 (17-25s): Road — 3 driving shots
-    # Scene 5 (25-28s): Finale — 1 glass building/end event shot
-    # Scene 6 (28-30s): Hero hold — best single wide, no people
+    used = set()
+
+    # ── SCENE 1: Drive cold open (~8s) ───────────────────────────────────────
+    # Open on motion — Shanghai streets, mystery, no context yet
+    scene1 = pick(DRIVING_CLIPS, 3, used, 2.5)
+
+    # ── SCENE 2: Each car introduced — wide + detail back to back ────────────
+    # Group no-people clips by their most distinctive car colour
+    # Sorted rarest first: lime → gold → sage → cream → yellow → red → navy → silver
+    car_clips = [c for c in usable
+                 if not c.get("people", False) and c.get("cars")
+                 and c["clip_id"] not in used]
+
+    by_car = defaultdict(lambda: {"wide": [], "detail": []})
+    for c in car_clips:
+        ck = car_key(c)
+        if not ck: continue
+        st = c.get("shot_type", "mid")
+        bucket = "detail" if st in ("detail", "close") else "wide"
+        by_car[ck][bucket].append(c)
+
+    # Sort each bucket chronologically (earlier = first filmed)
+    for ck in by_car:
+        by_car[ck]["wide"].sort(key=lambda c: int(clip_num(c)))
+        by_car[ck]["detail"].sort(key=lambda c: int(clip_num(c)))
+
+    car_order = sorted(by_car.keys(), key=lambda k: colour_score(k.split("-")[0]))
+
+    scene2 = []
+    for ck in car_order:
+        # Wide of this car (3s)
+        for c in by_car[ck]["wide"]:
+            if c["clip_id"] not in used:
+                scene2.append((c, 3.0)); used.add(c["clip_id"]); break
+        # Detail of same car immediately after (1.5s)
+        for c in by_car[ck]["detail"]:
+            if c["clip_id"] not in used:
+                scene2.append((c, 1.5)); used.add(c["clip_id"]); break
+
+    # ── SCENE 3: Multi-car wides — the full lineup together (~8s) ────────────
+    # Shots with multiple cars visible, no people
+    multi_car = [c for c in usable
+                 if not c.get("people", False)
+                 and len(c.get("cars", [])) >= 2
+                 and c["clip_id"] not in used
+                 and clip_num(c) in STATIC_WIDE]
+    multi_car.sort(key=lambda c: int(clip_num(c)))
+    scene3 = []
+    for c in multi_car[:3]:
+        scene3.append((c, 2.5)); used.add(c["clip_id"])
+
+    # ── SCENE 4: People — the crowd reacting (~8s) ───────────────────────────
+    scene4 = pick(PEOPLE_ONLY, 2, used, 2.0) + pick(PEOPLE_CARS, 2, used, 2.0)
+
+    # ── SCENE 5: Back on the road — payoff (~10s) ────────────────────────────
+    scene5 = pick(DRIVING_CLIPS, 4, used, 2.5)
+
+    # ── SCENE 6: Hero hold — single best wide, no people (~4s) ───────────────
+    scene6 = pick(STATIC_WIDE, 1, used, 4.0)
+
+    story = scene1 + scene2 + scene3 + scene4 + scene5 + scene6
+    write_fcpxml("PCS_STORY", story, OUT_DIR)
+
+    # Also generate the 30s documentary cut for Michael
     used_doc = set()
-    p3_doc = (
+    doc = (
         pick(CITY_CLIPS,    1, used_doc, 3.0) +
         pick(PEOPLE_ONLY,   1, used_doc, 2.5) +
         pick(PEOPLE_CARS,   1, used_doc, 2.5) +
-        pick(STATIC_WIDE,   3, used_doc, 2.5, enforce_car_variety=True) +
+        pick(STATIC_WIDE,   3, used_doc, 2.0) +
         pick(DETAIL_CLIPS,  1, used_doc, 1.5) +
-        pick(DRIVING_CLIPS, 3, used_doc, 2.5) +
-        pick(FINALE_CLIPS,  1, used_doc, 2.5) +
-        pick(STATIC_WIDE,   1, used_doc, 3.0)   # hero hold
+        pick(DRIVING_CLIPS, 3, used_doc, 2.0) +
+        pick(FINALE_CLIPS,  1, used_doc, 2.0) +
+        pick(STATIC_WIDE,   1, used_doc, 3.0)
     )
-    # Trim to 30s
-    acc = 0.0
-    p3_doc_trim = []
-    for c, d in p3_doc:
+    acc, doc_trim = 0.0, []
+    for c, d in doc:
         if acc >= 30.0: break
         d = min(d, 30.0 - acc)
-        p3_doc_trim.append((c, d)); acc += d
-    write_fcpxml("P3_DOC", p3_doc_trim, OUT_DIR)
-
-    # ── P3_REEL: 30s director's cut ──────────────────────────────────────────
-    # Scene 1 (0-3s)  : City cold open
-    # Scene 2 (3-9s)  : People reactions — fast cuts building energy
-    # Scene 3 (9-19s) : Fast-cut statics — every colour, no repeats
-    # Scene 4 (19-26s): Road — driving, motion, tunnel
-    # Scene 5 (26-30s): Hero hold
-    used_reel = set()
-    p3_reel = (
-        pick(CITY_CLIPS,    1, used_reel, 3.0) +
-        pick(PEOPLE_ONLY,   3, used_reel, 1.5) +
-        pick(PEOPLE_CARS,   1, used_reel, 1.5) +
-        pick(STATIC_WIDE,   4, used_reel, 1.2, enforce_car_variety=True) +
-        pick(DETAIL_CLIPS,  3, used_reel, 0.8, enforce_car_variety=True) +
-        pick(DRIVING_CLIPS, 4, used_reel, 1.5) +
-        pick(STATIC_WIDE,   1, used_reel, 4.0)   # hero hold
-    )
-    acc = 0.0
-    p3_reel_trim = []
-    for c, d in p3_reel:
-        if acc >= 30.0: break
-        d = min(d, 30.0 - acc)
-        p3_reel_trim.append((c, d)); acc += d
-    write_fcpxml("P3_REEL", p3_reel_trim, OUT_DIR)
-
-    # ── P4: 1-MIN BEST OF — linear scenes, cars only, max variety ────────────
-    # Scene 1 (0-5s)  : City establishing — 2 shots
-    # Scene 2 (5-13s) : Gathering — people + cars together
-    # Scene 3 (13-40s): The cars — wide per car then detail, every unique car
-    # Scene 4 (40-53s): On the road — driving through Shanghai
-    # Scene 5 (53-60s): Finale — glass building, hero hold
-    from collections import defaultdict
-    used_p4 = set()
-
-    # Scene 1: city
-    s1 = pick(CITY_CLIPS, 2, used_p4, 2.5)
-
-    # Scene 2: people with cars (brief gathering context)
-    s2 = pick(PEOPLE_CARS, 3, used_p4, 2.5)
-
-    # Scene 3: every unique car — wide first, then detail
-    car_only_clips = [c for c in usable_sorted
-                      if not c.get("people", False) and c.get("cars")]
-    by_car = defaultdict(lambda: {"wide": [], "detail": []})
-    for c in car_only_clips:
-        if c["clip_id"] in used_p4: continue
-        ck = car_key(c)
-        st = c.get("shot_type", "mid")
-        if st in ("wide", "mid", "drone"):
-            by_car[ck]["wide"].append(c)
-        elif st in ("detail", "close"):
-            by_car[ck]["detail"].append(c)
-        else:
-            by_car[ck]["wide"].append(c)
-
-    # Sort cars by colour rarity — lime/gold/sage before silver/grey/black
-    car_order = sorted(by_car.keys(), key=lambda k: colour_score(k.split("-")[0]))
-    s3 = []
-    for ck in car_order:
-        # Best wide of this car (chronological within car)
-        best_wide = sorted(by_car[ck]["wide"], key=lambda c: int(clip_num(c)))
-        for c in best_wide:
-            if c["clip_id"] not in used_p4:
-                s3.append((c, 2.0)); used_p4.add(c["clip_id"]); break
-        # Best detail of this car
-        best_det = sorted(by_car[ck]["detail"], key=lambda c: int(clip_num(c)))
-        for c in best_det:
-            if c["clip_id"] not in used_p4:
-                s3.append((c, 1.5)); used_p4.add(c["clip_id"]); break
-
-    # Scene 4: road
-    s4 = pick(DRIVING_CLIPS, 6, used_p4, 2.0)
-
-    # Scene 5: finale + hero
-    s5 = pick(FINALE_CLIPS, 2, used_p4, 2.0) + pick(STATIC_WIDE, 1, used_p4, 4.0)
-
-    p4_full = s1 + s2 + s3 + s4 + s5
-
-    # Trim to 62s
-    acc = 0.0
-    p4_trim = []
-    for c, d in p4_full:
-        if acc >= 62.0: break
-        d = min(d, 62.0 - acc)
-        p4_trim.append((c, d)); acc += d
-    write_fcpxml("P4_BESTOF_1MIN", p4_trim, OUT_DIR)
+        doc_trim.append((c, d)); acc += d
+    write_fcpxml("P3_DOC", doc_trim, OUT_DIR)
 
     # ── Car inventory ─────────────────────────────────────────────────────────
     print(f"\nCar inventory (curated clips only):")
@@ -498,9 +465,11 @@ def main():
     for car, count in sorted(car_counts.items(), key=lambda x: -x[1])[:20]:
         print(f"  {car}: {count} clips")
 
-    print(f"\nAll done — 4 FCPXMLs in AI folder")
-    print(f"  P1_ALL    — full selects, shoot order (includes RWB for reference)")
+    print(f"\nAll done — FCPXMLs in AI folder")
+    print(f"  P1_ALL     — full selects, shoot order (includes RWB)")
     print(f"  P2_SELECTS — ~6 min variety selects")
+    print(f"  PCS_STORY  — main story edit: drive open → each car → lineup → people → road → hero")
+    print(f"  P3_DOC     — 30s documentary cut for Michael")
     print(f"  P3_DOC    — 30s documentary (Michael's brief)")
     print(f"  P3_REEL   — 30s social/director's cut")
 
