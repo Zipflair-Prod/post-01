@@ -75,13 +75,27 @@ def clip_tags(clip):
         if car.get("colour"): tags.add(car["colour"].lower())
     return tags
 
+def normalise_model(model):
+    """Collapse model variants to a canonical name."""
+    m = model.lower()
+    for classic in ("356",):
+        if classic in m: return "356"
+    for code in ("993","996","997","991","992","918","928","914","912","718"):
+        if code in m: return f"911-{code}" if code not in ("918","928","914","912","718") else code
+    if "targa" in m: return "targa"
+    if "speedster" in m: return "speedster"
+    if "carrera rs" in m: return "carrera-rs"
+    if "911" in m: return "911-classic"
+    return m.split()[0] if m else "porsche"
+
 def car_key(clip):
-    """Unique key for the primary car in a clip — used to enforce variety."""
+    """Colour + normalised model — used to enforce variety."""
     cars = clip.get("cars", [])
-    if not cars:
-        return None
+    if not cars: return None
     c = cars[0]
-    return f"{c.get('colour','')} {c.get('model','')}".strip().lower()
+    colour = c.get("colour", "").lower().split()[0]  # just first word: "navy blue" → "navy"
+    model  = normalise_model(c.get("model", ""))
+    return f"{colour}-{model}" if colour else model
 
 # ── FCPXML writer ─────────────────────────────────────────────────────────────
 def write_fcpxml(pass_name, timeline_clips, out_dir):
@@ -427,19 +441,20 @@ def main():
         else:
             by_car[ck]["wide"].append(c)
 
-    # Sort cars by their best clip score
-    car_order = sorted(by_car.keys(),
-                       key=lambda k: max((c.get("best_window_score",0)
-                                         for c in by_car[k]["wide"] + by_car[k]["detail"]),
-                                        default=0), reverse=True)
+    # Sort cars alphabetically so colour variety is spread (not all silvers first)
+    car_order = sorted(by_car.keys())
     s3 = []
     for ck in car_order:
-        # Best 2s wide of this car
-        for c in by_car[ck]["wide"]:
+        # Best wide of this car (by score)
+        best_wide = sorted(by_car[ck]["wide"],
+                           key=lambda c: c.get("best_window_score",0), reverse=True)
+        for c in best_wide:
             if c["clip_id"] not in used_p4:
                 s3.append((c, 2.0)); used_p4.add(c["clip_id"]); break
-        # Best 1.5s detail of this car
-        for c in by_car[ck]["detail"]:
+        # Best detail of this car
+        best_det = sorted(by_car[ck]["detail"],
+                          key=lambda c: c.get("best_window_score",0), reverse=True)
+        for c in best_det:
             if c["clip_id"] not in used_p4:
                 s3.append((c, 1.5)); used_p4.add(c["clip_id"]); break
 
