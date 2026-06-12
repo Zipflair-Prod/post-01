@@ -128,19 +128,39 @@ def write_fcpxml(pass_name, timeline_clips, out_dir):
 
 # ── Story beat classification ─────────────────────────────────────────────────
 # Based on clip descriptions + shoot order (clip number = roughly chronological)
-CITY_CLIPS      = {"6364", "6365", "6313"}
-PEOPLE_CLIPS    = {"6316", "6319", "6320", "6326", "6327", "6385", "6382"}
-STATIC_CLIPS    = {"6362", "6363", "6341", "6336", "6340", "6332", "6311",
-                   "6323", "6322", "6331", "6338", "6344", "6345", "6376",
-                   "6317", "6318", "6321", "6348", "6349", "6359"}
-DETAIL_CLIPS    = {"6325", "6329", "6334", "6335", "6337", "6343", "6333",
-                   "6381", "6328", "6330", "6324", "6384", "6388", "6386"}
-DRIVING_CLIPS   = {"6371", "6360", "6356", "6366", "6370", "6361", "6368",
-                   "6373", "6378", "6353", "6357", "6354", "6346", "6347",
-                   "6355", "6367", "6375", "6374", "6358", "6369", "6312",
-                   "6372", "6380"}
-FINALE_CLIPS    = {"6379", "6383", "6377", "6350", "6352", "6387", "6386",
-                   "6315", "6314", "6342", "6351"}
+# City/road establishing — no cars, wide
+CITY_CLIPS      = {"6365", "6361", "6364", "6312"}
+
+# People only — no cars visible, gathering/reaction shots
+PEOPLE_ONLY     = {"6326", "6319", "6327", "6317", "6318", "6320"}
+
+# People WITH cars — gathering around the lineup
+PEOPLE_CARS     = {"6341", "6332", "6349", "6329", "6351", "6359",
+                   "6360", "6366", "6330"}
+
+# Static cars, no people — the clean lineup shots
+STATIC_WIDE     = {"6323", "6340", "6348", "6376", "6380", "6375",
+                   "6386", "6357", "6388", "6378", "6336", "6311",
+                   "6362", "6363", "6347", "6353", "6355", "6372",
+                   "6377", "6352", "6337", "6385", "6344", "6345",
+                   "6338", "6315", "6314", "6350", "6339", "6367",
+                   "6387", "6383"}
+
+# Detail shots — close-ups, no people
+DETAIL_CLIPS    = {"6325", "6334", "6335", "6343", "6384", "6324",
+                   "6333", "6381", "6328", "6316", "6385"}
+
+# Driving / motion through Shanghai
+DRIVING_CLIPS   = {"6371", "6356", "6370", "6373", "6374", "6358",
+                   "6372", "6366", "6354", "6346", "6342", "6368",
+                   "6369"}
+
+# Finale — end of day, glass building event area (later clip numbers, people + cars)
+FINALE_CLIPS    = {"6379", "6382", "6383", "6387", "6381", "6344",
+                   "6350", "6345", "6367", "6377", "6378", "6380"}
+
+# Convenience alias
+PEOPLE_CLIPS    = PEOPLE_ONLY | PEOPLE_CARS
 
 def clip_num(clip):
     return clip["clip_id"].replace("B-Cam20260602_", "").replace("_full", "")
@@ -159,41 +179,41 @@ def score_beat(clip, beat):
         return bws + (10 if num in CITY_CLIPS else 0)
 
     if beat == "doc_people":
-        return bws + (10 if num in PEOPLE_CLIPS else 0) + (-5 if moving else 0)
+        return bws + (10 if num in PEOPLE_ONLY else 0) + (5 if num in PEOPLE_CARS else 0)
 
     if beat == "doc_static":
-        return bws + (8 if num in STATIC_CLIPS else 0) + (4 if num in DETAIL_CLIPS else 0) + (-5 if people else 0)
+        return bws + (10 if num in STATIC_WIDE and not people else 0) + (6 if num in DETAIL_CLIPS else 0)
 
     if beat == "doc_detail":
-        return bws + (10 if num in DETAIL_CLIPS else 0) + (-5 if people else 0)
+        return bws + (10 if num in DETAIL_CLIPS and not people else 0)
 
     if beat == "doc_drive":
-        return bws + (10 if num in DRIVING_CLIPS else 0) + (-3 if people else 0)
+        return bws + (10 if num in DRIVING_CLIPS else 0)
 
     if beat == "doc_finale":
-        return bws + (10 if num in FINALE_CLIPS else 0) + (-3 if moving else 0)
+        return bws + (10 if num in FINALE_CLIPS else 0)
 
     if beat == "doc_hero":
-        return bws + (6 if num in STATIC_CLIPS and not people else 0) + (4 if st == "wide" else 0)
+        return bws + (8 if num in STATIC_WIDE and not people else 0) + (3 if st == "wide" else 0)
 
     # ── Reel beats ───────────────────────────────────────────────────────────
     if beat == "reel_city":
         return bws + (10 if num in CITY_CLIPS else 0)
 
     if beat == "reel_reaction":
-        return bws + (10 if num in PEOPLE_CLIPS else 0) + (-3 if moving else 0)
+        return bws + (10 if num in PEOPLE_ONLY else 0) + (5 if num in PEOPLE_CARS else 0)
 
     if beat == "reel_hyperzoom":
         return bws + (6 if st == "hyperlapse" else 0) + (3 if "hyperzoom" in tags or "zoom" in tags else 0)
 
     if beat == "reel_static":
-        return bws + (8 if num in STATIC_CLIPS else 0) + (6 if num in DETAIL_CLIPS else 0) + (-5 if people else 0)
+        return bws + (10 if num in STATIC_WIDE and not people else 0) + (8 if num in DETAIL_CLIPS else 0)
 
     if beat == "reel_road":
-        return bws + (10 if num in DRIVING_CLIPS else 0) + (2 if "tunnel" in tags else 0)
+        return bws + (10 if num in DRIVING_CLIPS else 0)
 
     if beat == "reel_hero":
-        return bws + (8 if num in STATIC_CLIPS and not people else 0) + (4 if st == "wide" else 0)
+        return bws + (8 if num in STATIC_WIDE and not people else 0) + (3 if st == "wide" else 0)
 
     return bws
 
