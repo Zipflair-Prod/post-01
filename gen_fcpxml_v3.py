@@ -333,39 +333,13 @@ def main():
     )) for c in p1]
     write_fcpxml("P1_ALL", p1_tl, OUT_DIR)
 
-    # ── P2: SELECTS 5-7 mins, variety-balanced ───────────────────────────────
-    target_secs = 360  # 6 mins
-    by_type  = {}
-    for c in usable_sorted:
-        st = c.get("shot_type", "wide")
-        by_type.setdefault(st, []).append(c)
-
-    type_order   = ["wide", "mid", "detail", "close", "hyperlapse", "drone"]
-    type_iters   = {t: iter(by_type.get(t, [])) for t in type_order}
-    added_ids, p2, total = set(), [], 0.0
-    fallback_iter = iter(usable_sorted)
-
-    while total < target_secs:
-        found = False
-        for t in type_order:
-            c = next(type_iters[t], None)
-            if c and c["clip_id"] not in added_ids:
-                win = c.get("best_window_end_sec", 5) - c.get("best_window_start_sec", 0)
-                d   = max(2.0, min(win, 7.0))
-                p2.append((c, d)); added_ids.add(c["clip_id"]); total += d
-                found = True
-                if total >= target_secs: break
-        if not found:
-            c = next(fallback_iter, None)
-            if not c: break
-            if c["clip_id"] not in added_ids:
-                win = c.get("best_window_end_sec", 5) - c.get("best_window_start_sec", 0)
-                d   = max(2.0, min(win, 7.0))
-                p2.append((c, d)); added_ids.add(c["clip_id"]); total += d
-
+    # ── P2: SELECTS — every clip, chronological, best 5s window each ────────
+    p2 = [(c, 5.0) for c in sorted(usable, key=lambda c: int(clip_num(c)))]
     write_fcpxml("P2_SELECTS", p2, OUT_DIR)
 
     from collections import defaultdict
+
+    all_clip_nums = {clip_num(c) for c in usable}
 
     def pick(pool_ids, n, used, dur):
         """Pick n clips from pool in shoot order, no repeats."""
@@ -380,6 +354,13 @@ def main():
             used.add(c["clip_id"])
         return result
 
+    def pick_remaining(used, dur):
+        """Pick all clips not yet used, in shoot order."""
+        return [
+            (c, dur) for c in sorted(usable, key=lambda c: int(clip_num(c)))
+            if c["clip_id"] not in used
+        ]
+
     used = set()
 
     # ── SCENE 1: Drive cold open (~8s) ───────────────────────────────────────
@@ -387,10 +368,8 @@ def main():
     scene1 = pick(DRIVING_CLIPS, 3, used, 2.5)
 
     # ── SCENE 2: Each car introduced — wide + detail back to back ────────────
-    # Group no-people clips by their most distinctive car colour
-    # Sorted rarest first: lime → gold → sage → cream → yellow → red → navy → silver
     car_clips = [c for c in usable
-                 if not c.get("people", False) and c.get("cars")
+                 if not c.get("people", False)
                  and c["clip_id"] not in used]
 
     by_car = defaultdict(lambda: {"wide": [], "detail": []})
@@ -440,7 +419,10 @@ def main():
     # ── SCENE 6: Hero hold — single best wide, no people (~4s) ───────────────
     scene6 = pick(STATIC_WIDE, 1, used, 4.0)
 
-    story = scene1 + scene2 + scene3 + scene4 + scene5 + scene6
+    # Catch-all — any clip not yet used goes in shoot order after road
+    scene_remainder = pick_remaining(used, 3.0)
+
+    story = scene1 + scene2 + scene3 + scene4 + scene5 + scene6 + scene_remainder
     print(f"\nPCS_STORY breakdown:")
     print(f"  S1 drive open:  {len(scene1)} clips")
     print(f"  S2 car intros:  {len(scene2)} clips ({len(car_order)} unique cars)")
@@ -448,6 +430,7 @@ def main():
     print(f"  S4 people:      {len(scene4)} clips")
     print(f"  S5 road:        {len(scene5)} clips")
     print(f"  S6 hero hold:   {len(scene6)} clips")
+    print(f"  Remainder:      {len(scene_remainder)} clips")
     write_fcpxml("PCS_STORY", story, OUT_DIR, verbose=True)
 
     # ── TALKING CUT — all people clips in shoot order ────────────────────────
