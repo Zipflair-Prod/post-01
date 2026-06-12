@@ -88,13 +88,26 @@ def normalise_model(model):
     if "911" in m: return "911-classic"
     return m.split()[0] if m else "porsche"
 
+# Rarer colours score lower = appear earlier in sorted order
+COLOUR_RARITY = {
+    "lime":1, "gold":2, "sage":3, "forest":4, "cream":5, "tan":6,
+    "pale":7, "yellow":8, "green":9, "red":10, "orange":11,
+    "light":12, "blue":13, "navy":14, "white":15, "beige":16,
+    "dark":17, "grey":18, "black":19, "silver":20,
+}
+
+def colour_score(colour):
+    first = colour.lower().split()[0] if colour else "silver"
+    return COLOUR_RARITY.get(first, 15)
+
 def car_key(clip):
-    """Colour + normalised model — used to enforce variety."""
+    """Pick the most visually distinctive car in the clip as the key."""
     cars = [c for c in clip.get("cars", []) if c.get("colour") or c.get("model")]
     if not cars: return None
-    c = cars[0]
-    colour = c.get("colour", "").lower().split()[0]
-    model  = normalise_model(c.get("model", ""))
+    # Pick rarest colour
+    best = min(cars, key=lambda c: colour_score(c.get("colour", "silver")))
+    colour = best.get("colour", "").lower().split()[0]
+    model  = normalise_model(best.get("model", ""))
     return f"{colour}-{model}" if colour else model
 
 # ── FCPXML writer ─────────────────────────────────────────────────────────────
@@ -443,8 +456,8 @@ def main():
         else:
             by_car[ck]["wide"].append(c)
 
-    # Sort cars alphabetically so colour variety is spread (not all silvers first)
-    car_order = sorted(by_car.keys())
+    # Sort cars by colour rarity — lime/gold/sage before silver/grey/black
+    car_order = sorted(by_car.keys(), key=lambda k: colour_score(k.split("-")[0]))
     s3 = []
     for ck in car_order:
         # Best wide of this car (chronological within car)
