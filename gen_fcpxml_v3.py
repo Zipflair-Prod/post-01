@@ -436,6 +436,18 @@ def main():
     story = scene1 + scene2 + scene3 + scene4 + scene5 + scene6
     write_fcpxml("PCS_STORY", story, OUT_DIR)
 
+    # ── TALKING CUT — all people clips in shoot order ────────────────────────
+    talking = sorted(
+        [c for c in usable if c.get("people", False)],
+        key=lambda c: int(clip_num(c))
+    )
+    talking_tl = []
+    for c in talking:
+        ws = c.get("best_window_start_sec", 0)
+        we = c.get("best_window_end_sec", 5)
+        talking_tl.append((c, max(3.0, we - ws)))
+    write_fcpxml("TALKING_ALL", talking_tl, OUT_DIR)
+
     # Also generate the 30s documentary cut for Michael
     used_doc = set()
     doc = (
