@@ -126,61 +126,74 @@ def write_fcpxml(pass_name, timeline_clips, out_dir):
     return out_path
 
 
+# ── Story beat classification ─────────────────────────────────────────────────
+# Based on clip descriptions + shoot order (clip number = roughly chronological)
+CITY_CLIPS      = {"6364", "6365", "6313"}
+PEOPLE_CLIPS    = {"6316", "6319", "6320", "6326", "6327", "6385", "6382"}
+STATIC_CLIPS    = {"6362", "6363", "6341", "6336", "6340", "6332", "6311",
+                   "6323", "6322", "6331", "6338", "6344", "6345", "6376",
+                   "6317", "6318", "6321", "6348", "6349", "6359"}
+DETAIL_CLIPS    = {"6325", "6329", "6334", "6335", "6337", "6343", "6333",
+                   "6381", "6328", "6330", "6324", "6384", "6388", "6386"}
+DRIVING_CLIPS   = {"6371", "6360", "6356", "6366", "6370", "6361", "6368",
+                   "6373", "6378", "6353", "6357", "6354", "6346", "6347",
+                   "6355", "6367", "6375", "6374", "6358", "6369", "6312",
+                   "6372", "6380"}
+FINALE_CLIPS    = {"6379", "6383", "6377", "6350", "6352", "6387", "6386",
+                   "6315", "6314", "6342", "6351"}
+
+def clip_num(clip):
+    return clip["clip_id"].replace("B-Cam20260602_", "").replace("_full", "")
+
 # ── Beat scorers ───────────────────────────────────────────────────────────────
 def score_beat(clip, beat):
-    tags   = clip_tags(clip)
-    st     = clip.get("shot_type", "")
-    bws    = clip.get("best_window_score", clip.get("composite_score", 5))
+    bws = clip.get("best_window_score", clip.get("composite_score", 5))
+    num = clip_num(clip)
+    tags = clip_tags(clip)
+    st   = clip.get("shot_type", "")
     people = clip.get("people", False)
-    city   = clip.get("city_visible", False)
-    cars   = clip.get("cars", [])
     moving = any(t in tags for t in ("driving","tunnel","road","moving","convoy","motion"))
-    static_car = not moving and len(cars) > 0
 
-    # ── Documentary beats ────────────────────────────────────────────────────
+    # ── Documentary beats (hard-mapped from clip descriptions) ───────────────
     if beat == "doc_city":
-        # Wide/drone city, no people, not car-focused
-        return bws + (4 if city and st in ("wide","drone") else 0) + (-3 if people else 0)
+        return bws + (10 if num in CITY_CLIPS else 0)
 
-    if beat == "doc_gather":
-        # Arriving, preparing — people present, wider framing, calm
-        return bws + (3 if people and st in ("wide","mid") else 0) + (-2 if moving else 0)
+    if beat == "doc_people":
+        return bws + (10 if num in PEOPLE_CLIPS else 0) + (-5 if moving else 0)
 
-    if beat == "doc_cars":
-        # Static cars, variety of models/colours, no RWB
-        return bws + (3 if static_car and st in ("wide","mid","detail","close") else 0) + (-2 if people else 0)
+    if beat == "doc_static":
+        return bws + (8 if num in STATIC_CLIPS else 0) + (4 if num in DETAIL_CLIPS else 0) + (-5 if people else 0)
+
+    if beat == "doc_detail":
+        return bws + (10 if num in DETAIL_CLIPS else 0) + (-5 if people else 0)
 
     if beat == "doc_drive":
-        # Cars actually moving through Shanghai
-        return bws + (4 if moving else 0) + (2 if city else 0) + (-1 if people else 0)
+        return bws + (10 if num in DRIVING_CLIPS else 0) + (-3 if people else 0)
 
-    if beat == "doc_finish":
-        # Back at venue, calm, reflective — people ok but not centre stage
-        return bws + (2 if people and not moving else 0) + (2 if st in ("wide","mid") else 0)
+    if beat == "doc_finale":
+        return bws + (10 if num in FINALE_CLIPS else 0) + (-3 if moving else 0)
 
     if beat == "doc_hero":
-        # Single best frame — wide, clean, no people
-        return bws + (3 if st == "wide" else 0) + (-3 if people else 0) + (2 if static_car else 0)
+        return bws + (6 if num in STATIC_CLIPS and not people else 0) + (4 if st == "wide" else 0)
 
     # ── Reel beats ───────────────────────────────────────────────────────────
     if beat == "reel_city":
-        return bws + (4 if city and not people else 0) + (2 if st in ("wide","drone") else 0)
+        return bws + (10 if num in CITY_CLIPS else 0)
 
     if beat == "reel_reaction":
-        return bws + (5 if people else 0) + (2 if st == "mid" else 0) + (-2 if moving else 0)
+        return bws + (10 if num in PEOPLE_CLIPS else 0) + (-3 if moving else 0)
 
     if beat == "reel_hyperzoom":
         return bws + (6 if st == "hyperlapse" else 0) + (3 if "hyperzoom" in tags or "zoom" in tags else 0)
 
     if beat == "reel_static":
-        # Fast-cut statics — variety enforced separately
-        return bws + (3 if static_car else 0) + (2 if st in ("detail","close","mid") else 0) + (-2 if people else 0)
+        return bws + (8 if num in STATIC_CLIPS else 0) + (6 if num in DETAIL_CLIPS else 0) + (-5 if people else 0)
 
     if beat == "reel_road":
-        return bws + (4 if moving else 0) + (2 if "tunnel" in tags else 0) + (1 if city else 0)
+        return bws + (10 if num in DRIVING_CLIPS else 0) + (2 if "tunnel" in tags else 0)
 
     if beat == "reel_hero":
-        return bws + (3 if st == "wide" and not people else 0) + (2 if static_car else 0)
+        return bws + (8 if num in STATIC_CLIPS and not people else 0) + (4 if st == "wide" else 0)
 
     return bws
 
@@ -285,18 +298,20 @@ def main():
     write_fcpxml("P2_SELECTS", p2, OUT_DIR)
 
     # ── P3_DOC: 30s documentary (Michael's brief) ────────────────────────────
-    # 0-3s   : Shanghai establishing — wide/drone city, no people
-    # 3-8s   : Gathering — people arriving, preparing, calm
-    # 8-16s  : The cars — static reveals, variety, deliberate pace
-    # 16-24s : On the road — moving through Shanghai
-    # 24-27s : The finish — back at venue, reflection
-    # 27-30s : Hero hold — single best frame, wide, clean
+    # 0-3s   : Shanghai city establishing (6364/6365)
+    # 3-7s   : People gathering at Porsche Centre
+    # 7-14s  : Statics outside — cars lined up, one detail cut
+    # 14-16s : Detail — badge/wheel close-up
+    # 16-24s : On the road through Shanghai
+    # 24-27s : Glass building finale
+    # 27-30s : Hero hold
     doc_beats = [
-        ("doc_city",   3.0, 1),   # 3s  — 1 establishing shot
-        ("doc_gather", 2.5, 2),   # 5s  — 2 gathering shots
-        ("doc_cars",   2.0, 4),   # 8s  — 4 car reveals
+        ("doc_city",   3.0, 1),   # 3s  — 1 city wide
+        ("doc_people", 2.0, 2),   # 4s  — 2 people shots
+        ("doc_static", 2.5, 3),   # 7s  — 3 statics
+        ("doc_detail", 1.5, 1),   # 1.5s — 1 detail
         ("doc_drive",  2.0, 4),   # 8s  — 4 driving shots
-        ("doc_finish", 1.5, 2),   # 3s  — 2 finish shots
+        ("doc_finale", 1.5, 2),   # 3s  — 2 finale shots
         ("doc_hero",   3.0, 1),   # 3s  — hero hold
     ]
     p3_doc = build_pass3(usable_sorted, doc_beats)
