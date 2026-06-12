@@ -317,100 +317,134 @@ def main():
 
     write_fcpxml("P2_SELECTS", p2, OUT_DIR)
 
-    # ── P3_DOC: 30s documentary (Michael's brief) ────────────────────────────
-    # 0-3s   : Shanghai city establishing (6364/6365)
-    # 3-7s   : People gathering at Porsche Centre
-    # 7-14s  : Statics outside — cars lined up, one detail cut
-    # 14-16s : Detail — badge/wheel close-up
-    # 16-24s : On the road through Shanghai
-    # 24-27s : Glass building finale
-    # 27-30s : Hero hold
-    doc_beats = [
-        ("doc_city",   3.0, 1),   # 3s  — 1 city wide
-        ("doc_people", 2.0, 2),   # 4s  — 2 people shots
-        ("doc_static", 2.5, 3),   # 7s  — 3 statics
-        ("doc_detail", 1.5, 1),   # 1.5s — 1 detail
-        ("doc_drive",  2.0, 4),   # 8s  — 4 driving shots
-        ("doc_finale", 1.5, 2),   # 3s  — 2 finale shots
-        ("doc_hero",   3.0, 1),   # 3s  — hero hold
-    ]
-    p3_doc = build_pass3(usable_sorted, doc_beats)
-    write_fcpxml("P3_DOC", p3_doc, OUT_DIR)
+    # Helper: pick best N clips from a pool, no repeats, no consecutive same car
+    def pick(pool_ids, n, used, dur, enforce_car_variety=False):
+        pool = [c for c in usable_sorted
+                if clip_num(c) in pool_ids and c["clip_id"] not in used]
+        result, last_ck = [], None
+        for c in pool:
+            if len(result) >= n: break
+            ck = car_key(c)
+            if enforce_car_variety and ck and ck == last_ck:
+                continue
+            result.append((c, dur))
+            used.add(c["clip_id"])
+            last_ck = ck
+        return result
 
-    # ── P3_REEL: 30s social/director's cut ───────────────────────────────────
-    # 0-3s   : Shanghai city cold open
-    # 3-8s   : People reactions — amazed, excited (fast cuts, building)
-    # 7-8s   : Hyperzoom outside Porsche Centre — the pivot
-    # 8-16s  : Statics — every car, every colour, fast cuts, no repeats
-    # 16-23s : On the road — convoy, tunnel, motion
-    # 23-27s : Shanghai + cars together
-    # 27-30s : Hero hold
-    reel_beats = [
-        ("reel_city",      3.0, 1),   # 3s  — city cold open
-        ("reel_reaction",  1.2, 4),   # ~5s — reaction montage
-        ("reel_hyperzoom", 1.5, 1),   # 1.5s — hyperzoom pivot
-        ("reel_static",    1.0, 8),   # 8s  — fast-cut statics, car variety enforced
-        ("reel_road",      1.5, 4),   # 6s  — driving/tunnel
-        ("reel_city",      1.5, 2),   # 3s  — Shanghai backdrop
-        ("reel_hero",      3.0, 1),   # 3s  — hero hold
-    ]
-    p3_reel = build_pass3(usable_sorted, reel_beats)
-    write_fcpxml("P3_REEL", p3_reel, OUT_DIR)
+    # ── P3_DOC: 30s documentary ──────────────────────────────────────────────
+    # Scene 1 (0-3s)  : Shanghai city — 1 wide establishing
+    # Scene 2 (3-8s)  : Gathering — 1 people-only + 1 people-with-cars
+    # Scene 3 (8-17s) : Cars — 3 statics (different cars) + 1 detail
+    # Scene 4 (17-25s): Road — 3 driving shots
+    # Scene 5 (25-28s): Finale — 1 glass building/end event shot
+    # Scene 6 (28-30s): Hero hold — best single wide, no people
+    used_doc = set()
+    p3_doc = (
+        pick(CITY_CLIPS,    1, used_doc, 3.0) +
+        pick(PEOPLE_ONLY,   1, used_doc, 2.5) +
+        pick(PEOPLE_CARS,   1, used_doc, 2.5) +
+        pick(STATIC_WIDE,   3, used_doc, 2.5, enforce_car_variety=True) +
+        pick(DETAIL_CLIPS,  1, used_doc, 1.5) +
+        pick(DRIVING_CLIPS, 3, used_doc, 2.5) +
+        pick(FINALE_CLIPS,  1, used_doc, 2.5) +
+        pick(STATIC_WIDE,   1, used_doc, 3.0)   # hero hold
+    )
+    # Trim to 30s
+    acc = 0.0
+    p3_doc_trim = []
+    for c, d in p3_doc:
+        if acc >= 30.0: break
+        d = min(d, 30.0 - acc)
+        p3_doc_trim.append((c, d)); acc += d
+    write_fcpxml("P3_DOC", p3_doc_trim, OUT_DIR)
 
-    # ── P4: 1-MIN BEST OF — cars only, max variety ───────────────────────────
-    # Every car model/colour gets its moment. No people. Mix of wide/mid/detail.
-    # ~60s target. No repeat of same car key back-to-back.
-    car_only = [c for c in usable_sorted
-                if not c.get("people", False)
-                and c.get("cars") and len(c["cars"]) > 0]
+    # ── P3_REEL: 30s director's cut ──────────────────────────────────────────
+    # Scene 1 (0-3s)  : City cold open
+    # Scene 2 (3-9s)  : People reactions — fast cuts building energy
+    # Scene 3 (9-19s) : Fast-cut statics — every colour, no repeats
+    # Scene 4 (19-26s): Road — driving, motion, tunnel
+    # Scene 5 (26-30s): Hero hold
+    used_reel = set()
+    p3_reel = (
+        pick(CITY_CLIPS,    1, used_reel, 3.0) +
+        pick(PEOPLE_ONLY,   3, used_reel, 1.5) +
+        pick(PEOPLE_CARS,   1, used_reel, 1.5) +
+        pick(STATIC_WIDE,   4, used_reel, 1.2, enforce_car_variety=True) +
+        pick(DETAIL_CLIPS,  3, used_reel, 0.8, enforce_car_variety=True) +
+        pick(DRIVING_CLIPS, 4, used_reel, 1.5) +
+        pick(STATIC_WIDE,   1, used_reel, 4.0)   # hero hold
+    )
+    acc = 0.0
+    p3_reel_trim = []
+    for c, d in p3_reel:
+        if acc >= 30.0: break
+        d = min(d, 30.0 - acc)
+        p3_reel_trim.append((c, d)); acc += d
+    write_fcpxml("P3_REEL", p3_reel_trim, OUT_DIR)
 
-    # Build ordered list ensuring car variety — cycle through unique car keys
+    # ── P4: 1-MIN BEST OF — linear scenes, cars only, max variety ────────────
+    # Scene 1 (0-5s)  : City establishing — 2 shots
+    # Scene 2 (5-13s) : Gathering — people + cars together
+    # Scene 3 (13-40s): The cars — wide per car then detail, every unique car
+    # Scene 4 (40-53s): On the road — driving through Shanghai
+    # Scene 5 (53-60s): Finale — glass building, hero hold
     from collections import defaultdict
-    by_car = defaultdict(list)
-    for c in car_only:
+    used_p4 = set()
+
+    # Scene 1: city
+    s1 = pick(CITY_CLIPS, 2, used_p4, 2.5)
+
+    # Scene 2: people with cars (brief gathering context)
+    s2 = pick(PEOPLE_CARS, 3, used_p4, 2.5)
+
+    # Scene 3: every unique car — wide first, then detail
+    car_only_clips = [c for c in usable_sorted
+                      if not c.get("people", False) and c.get("cars")]
+    by_car = defaultdict(lambda: {"wide": [], "detail": []})
+    for c in car_only_clips:
+        if c["clip_id"] in used_p4: continue
         ck = car_key(c)
-        by_car[ck].append(c)
+        st = c.get("shot_type", "mid")
+        if st in ("wide", "mid", "drone"):
+            by_car[ck]["wide"].append(c)
+        elif st in ("detail", "close"):
+            by_car[ck]["detail"].append(c)
+        else:
+            by_car[ck]["wide"].append(c)
 
-    # Sort each car's clips by best_window_score
-    for ck in by_car:
-        by_car[ck].sort(key=lambda c: c.get("best_window_score", 0), reverse=True)
-
-    # Round-robin through cars, mix shot types per car (wide then detail)
-    car_keys_sorted = sorted(by_car.keys(), key=lambda k: -by_car[k][0].get("best_window_score", 0))
-    p4, used_p4, total_p4 = [], set(), 0.0
-    target_p4 = 62.0
-
-    # First pass: one best clip per car
-    for ck in car_keys_sorted:
-        if total_p4 >= target_p4:
-            break
-        for c in by_car[ck]:
+    # Sort cars by their best clip score
+    car_order = sorted(by_car.keys(),
+                       key=lambda k: max((c.get("best_window_score",0)
+                                         for c in by_car[k]["wide"] + by_car[k]["detail"]),
+                                        default=0), reverse=True)
+    s3 = []
+    for ck in car_order:
+        # Best wide of this car
+        for c in by_car[ck]["wide"]:
             if c["clip_id"] not in used_p4:
-                st = c.get("shot_type", "mid")
-                d  = 3.0 if st == "wide" else 2.0 if st == "mid" else 1.5
-                p4.append((c, d))
-                used_p4.add(c["clip_id"])
-                total_p4 += d
-                break
+                s3.append((c, 2.0)); used_p4.add(c["clip_id"]); break
+        # Best detail of this car
+        for c in by_car[ck]["detail"]:
+            if c["clip_id"] not in used_p4:
+                s3.append((c, 1.2)); used_p4.add(c["clip_id"]); break
 
-    # Second pass: fill remaining time with detail shots of same cars
-    for ck in car_keys_sorted:
-        if total_p4 >= target_p4:
-            break
-        for c in by_car[ck]:
-            if c["clip_id"] not in used_p4 and c.get("shot_type") in ("detail", "close"):
-                p4.append((c, 1.5))
-                used_p4.add(c["clip_id"])
-                total_p4 += 1.5
-                break
+    # Scene 4: road
+    s4 = pick(DRIVING_CLIPS, 6, used_p4, 2.0)
 
-    # Trim last clip to hit ~60s
-    if p4:
-        acc = sum(d for _, d in p4[:-1])
-        last_c, _ = p4[-1]
-        p4[-1] = (last_c, max(1.5, 60.0 - acc))
+    # Scene 5: finale + hero
+    s5 = pick(FINALE_CLIPS, 2, used_p4, 2.0) + pick(STATIC_WIDE, 1, used_p4, 4.0)
 
-    write_fcpxml("P4_BESTOF_1MIN", p4, OUT_DIR)
+    p4_full = s1 + s2 + s3 + s4 + s5
+
+    # Trim to 62s
+    acc = 0.0
+    p4_trim = []
+    for c, d in p4_full:
+        if acc >= 62.0: break
+        d = min(d, 62.0 - acc)
+        p4_trim.append((c, d)); acc += d
+    write_fcpxml("P4_BESTOF_1MIN", p4_trim, OUT_DIR)
 
     # ── Car inventory ─────────────────────────────────────────────────────────
     print(f"\nCar inventory (curated clips only):")
