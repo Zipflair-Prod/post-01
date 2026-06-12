@@ -47,10 +47,24 @@ def fcpt(secs):
     f = round(secs * 24000 / 1001)
     return f"{f * 1001}/24000s"
 
+def best_window_for_dur(clip, want_dur):
+    """Find the best N-second window from per-frame scores."""
+    fs = clip.get("frame_scores", [])
+    if not fs:
+        return clip.get("best_window_start_sec", 0), want_dur
+    scores = [f.get("score", 0) if f.get("usable", True) else 0 for f in fs]
+    n = len(scores)
+    w = max(1, min(round(want_dur), n))
+    best_sum, best_i = -1, 0
+    for i in range(n - w + 1):
+        s = sum(scores[i:i+w])
+        if s > best_sum:
+            best_sum, best_i = s, i
+    return best_i, want_dur
+
 def best_start(clip, proxy_dur, want_dur):
-    ws = clip.get("best_window_start_sec", 0)
-    we = clip.get("best_window_end_sec", want_dur)
-    use_dur = min(want_dur, we - ws, proxy_dur)
+    ws, use_dur = best_window_for_dur(clip, want_dur)
+    use_dur = min(use_dur, proxy_dur)
     start = min(ws, max(0.0, proxy_dur - use_dur))
     return start, use_dur
 
@@ -420,14 +434,14 @@ def main():
                                         default=0), reverse=True)
     s3 = []
     for ck in car_order:
-        # Best wide of this car
+        # Best 2s wide of this car
         for c in by_car[ck]["wide"]:
             if c["clip_id"] not in used_p4:
                 s3.append((c, 2.0)); used_p4.add(c["clip_id"]); break
-        # Best detail of this car
+        # Best 1.5s detail of this car
         for c in by_car[ck]["detail"]:
             if c["clip_id"] not in used_p4:
-                s3.append((c, 1.2)); used_p4.add(c["clip_id"]); break
+                s3.append((c, 1.5)); used_p4.add(c["clip_id"]); break
 
     # Scene 4: road
     s4 = pick(DRIVING_CLIPS, 6, used_p4, 2.0)
