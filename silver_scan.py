@@ -106,11 +106,26 @@ def clip_duration(path):
 def extract_frame(mp4_path, at_sec):
     with tempfile.TemporaryDirectory() as tmp:
         out = f"{tmp}/frame.jpg"
+        # Try fast seek first
         subprocess.run([
             "ffmpeg", "-ss", str(at_sec), "-i", str(mp4_path),
             "-vframes", "1", "-q:v", "4", "-vf", "scale=960:-1", out
         ], capture_output=True)
         p = Path(out)
+        if p.exists():
+            return p.read_bytes()
+        # Fallback: slow seek (input seek fails on some files)
+        subprocess.run([
+            "ffmpeg", "-i", str(mp4_path), "-ss", str(at_sec),
+            "-vframes", "1", "-q:v", "4", "-vf", "scale=960:-1", out
+        ], capture_output=True)
+        if p.exists():
+            return p.read_bytes()
+        # Last resort: grab very first frame
+        subprocess.run([
+            "ffmpeg", "-i", str(mp4_path),
+            "-vframes", "1", "-q:v", "4", "-vf", "scale=960:-1", out
+        ], capture_output=True)
         if p.exists():
             return p.read_bytes()
     return None
@@ -155,9 +170,8 @@ def main():
             print(f"  [skip] not found: {folder_name}")
             continue
 
-        # rglob handles subfolders; skip macOS metadata stubs (._filename)
-        clips = sorted(p for p in folder.rglob("*.MP4") if not p.name.startswith("._")) + \
-                sorted(p for p in folder.rglob("*.mp4") if not p.name.startswith("._"))
+        # rglob handles subfolders automatically
+        clips = sorted(folder.rglob("*.MP4")) + sorted(folder.rglob("*.mp4"))
         print(f"\n{'='*60}")
         print(f"{folder_name}: {len(clips)} clips")
         print(f"{'='*60}")
