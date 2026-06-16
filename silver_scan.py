@@ -155,8 +155,9 @@ def main():
             print(f"  [skip] not found: {folder_name}")
             continue
 
-        # rglob handles subfolders automatically
-        clips = sorted(folder.rglob("*.MP4")) + sorted(folder.rglob("*.mp4"))
+        # rglob handles subfolders; skip macOS metadata stubs (._filename)
+        clips = sorted(p for p in folder.rglob("*.MP4") if not p.name.startswith("._")) + \
+                sorted(p for p in folder.rglob("*.mp4") if not p.name.startswith("._"))
         print(f"\n{'='*60}")
         print(f"{folder_name}: {len(clips)} clips")
         print(f"{'='*60}")
