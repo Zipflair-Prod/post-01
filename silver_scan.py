@@ -1,24 +1,26 @@
 """
-GT World Challenge Asia — Two-phase Silver class scanner.
+GT World Challenge Asia — GT Academy Contender Scanner.
+Finds all 7 contenders by car livery/number AND by face/helmet.
 
-Phase 1: One frame per clip → detect Silver cars present (~$3/event, fast)
-Phase 2: 1fps on matched clips only → find exact moments → trimmed FCPXML
+Phase 1: One frame per clip → detect car or driver → tag clip
+Phase 2: 1fps on matched clips → find exact moments → trimmed FCPXML per driver
 
 Usage:
   python3 silver_scan.py sepang
   python3 silver_scan.py mandalika
 
-Output:
-  /Volumes/SSD12/Silver_Selects/<Event>/Car_XX/   — full clip copies
-  /Volumes/SSD12/Silver_Selects/<Event>/<Event>_Silver_Car_XX.fcpxml
+Output: /Volumes/SSD12/Silver_Selects/<Event>/<Driver_Name>/
+        /Volumes/SSD12/Silver_Selects/<Event>/<Event>_<Driver>.fcpxml
 """
 import json, base64, time, subprocess, tempfile, shutil, sys
 from pathlib import Path
-from datetime import datetime
 import anthropic
 
-MODEL = "claude-haiku-4-5-20251001"
+MODEL  = "claude-haiku-4-5-20251001"
 client = anthropic.Anthropic()
+
+REF_PHOTO      = Path("/Volumes/SSD12/Silver_Selects/drivers_reference.jpg")
+REF_PHOTO_NAMES = Path("/Volumes/SSD12/Silver_Selects/Names_drivers_reference.jpg")
 
 EVENTS = {
     "sepang": {
@@ -48,40 +50,78 @@ EVENTS = {
     },
 }
 
-SILVER_ROSTER = """Silver class cars — GT World Challenge Asia 2026:
-#10  BMW M4 GT3 EVO          — blue & gold livery
-#13  Ferrari 296 GT3 EVO     — white/grey/black livery
-#16  Audi R8 LMS GT3 EVO II  — blue & yellow livery
-#25  Porsche 911 GT3 R EVO   — teal & black livery
-#27  Mercedes-AMG GT3 EVO    — black & orange livery
-#29  Lamborghini Huracan GT3 — dark navy livery (driver: Akash Nandy)
-#77  Mercedes-AMG GT3 EVO    — green & yellow ROWE livery
-#96  Ferrari 296 GT3         — anime character wrap livery"""
+# 7 GT Academy contenders — car number, make, livery, driver name(s)
+CONTENDERS = [
+    {"number": 10,  "make": "BMW M4 GT3",              "livery": "blue & gold",         "drivers": ["Maxime Oosten", "Brian Lee"]},
+    {"number": 16,  "make": "Audi R8 LMS GT3 EVO II",  "livery": "blue & yellow",       "drivers": ["James Yu Kuai", "Cheng Congfu"]},
+    {"number": 27,  "make": "Mercedes-AMG GT3",         "livery": "black & orange",      "drivers": ["Elias Seppanen", "Li Lichao"]},
+    {"number": 29,  "make": "Lamborghini Huracan GT3",  "livery": "dark navy",           "drivers": ["Akash Neil Nandy"]},
+    {"number": 96,  "make": "Ferrari 296 GT3",          "livery": "anime character wrap","drivers": ["Deng Yi", "Kaishun Liu"]},
+    {"number": 500, "make": "Nissan GT-R NISMO GT3",    "livery": "white & black Team Szigen", "drivers": ["Atsushi Miyake"]},
+]
 
-P1_PROMPT = f"""You are logging GT3 motorsport footage for a video editor.
+ACADEMY_DRIVERS = [
+    "James Yu Kuai", "Kaishun Liu", "Maxime Oosten",
+    "Akash Neil Nandy", "Elias Seppanen", "Atsushi Miyake", "Deng Yi"
+]
 
-{SILVER_ROSTER}
+ROSTER_TEXT = "\n".join(
+    f"  #{c['number']}  {c['make']} — {c['livery']} — {', '.join(c['drivers'])}"
+    for c in CONTENDERS
+)
 
-Look at this frame. Do you see any Silver class car listed above?
+P1_CAR_PROMPT = f"""You are logging GT3 motorsport footage for a video editor.
+
+GT Academy contender cars:
+{ROSTER_TEXT}
+
+Look at this frame. Do you see any of these contender cars, OR any of the named drivers (helmet on or off)?
+
+I am also sending you a reference photo of all 7 drivers together so you can match faces.
 
 Return ONLY valid JSON:
 {{
-  "silver_detected": true or false,
-  "cars": [{{"number": <int or null>, "make": "<make>", "confidence": <0.0-1.0>}}],
+  "detected": true or false,
+  "cars": [{{"number": <int or null>, "make": "<make>", "confidence": <0.0-1.0>, "notes": "<brief>"}}],
+  "drivers": [{{"name": "<full name or null>", "helmet_on": true/false, "confidence": <0.0-1.0>, "notes": "<e.g. helmet on, likely Nandy based on white suit>"}}],
   "scene": "<track|pitlane|paddock|podium|interview|other>"
 }}
-Only include cars you can actually see. If none, silver_detected: false, cars: []."""
+
+For helmet-on shots: use suit colour, car context, and body build to make your best guess — flag confidence below 0.6 as uncertain.
+If nothing detected, return detected: false, cars: [], drivers: [].
+"""
 
 P2_PROMPT = f"""You are logging GT3 motorsport footage frame by frame.
 
-{SILVER_ROSTER}
+GT Academy contender cars:
+{ROSTER_TEXT}
 
-I am sending you multiple frames (1 per second) from a single clip. For EACH frame tell me which Silver class cars are visible.
+I am sending multiple frames (1 per second) from one clip, plus a reference photo of all 7 drivers.
+For EACH frame identify any contender cars or drivers visible.
 
 Return ONLY a JSON array, one entry per frame in order:
-[{{"second": <int>, "silver_detected": true/false, "cars": [{{"number": <int or null>, "make": "<make>", "confidence": <0.0-1.0>}}]}}]"""
+[{{
+  "second": <int>,
+  "detected": true/false,
+  "cars": [{{"number": <int or null>, "make": "<make>", "confidence": <0.0-1.0>}}],
+  "drivers": [{{"name": "<name or null>", "helmet_on": true/false, "confidence": <0.0-1.0>}}]
+}}]
+"""
 
 # ── Utilities ──────────────────────────────────────────────────────────────────
+
+def load_ref_images():
+    imgs = []
+    for p in [REF_PHOTO_NAMES, REF_PHOTO]:
+        if p.exists():
+            imgs.append(p.read_bytes())
+    return imgs
+
+def img_block(jpg_bytes):
+    return {"type": "image", "source": {
+        "type": "base64", "media_type": "image/jpeg",
+        "data": base64.standard_b64encode(jpg_bytes).decode()
+    }}
 
 def clip_duration(path):
     r = subprocess.run(
@@ -102,78 +142,69 @@ def extract_frame(path, at_sec, scale=960):
             ["ffmpeg", "-i", str(path), "-vframes", "1", "-q:v", "4", "-vf", f"scale={scale}:-1", out],
         ]:
             subprocess.run(args, capture_output=True)
-            p = Path(out)
-            if p.exists():
-                return p.read_bytes()
+            if Path(out).exists():
+                return Path(out).read_bytes()
     return None
 
-def extract_frames_1fps(path, duration, scale=640):
-    """Extract one frame per second, return list of (second, jpg_bytes)."""
+def extract_frames_1fps(path, scale=640):
     frames = []
     with tempfile.TemporaryDirectory() as tmp:
         subprocess.run([
             "ffmpeg", "-i", str(path),
-            "-vf", f"fps=1,scale={scale}:-1",
-            "-q:v", "5", f"{tmp}/f_%04d.jpg"
+            "-vf", f"fps=1,scale={scale}:-1", "-q:v", "5", f"{tmp}/f_%04d.jpg"
         ], capture_output=True)
         for p in sorted(Path(tmp).glob("f_*.jpg")):
             sec = int(p.stem.split("_")[1]) - 1
             frames.append((sec, p.read_bytes()))
     return frames
 
-def img_block(jpg_bytes):
-    return {"type": "image", "source": {
-        "type": "base64", "media_type": "image/jpeg",
-        "data": base64.standard_b64encode(jpg_bytes).decode()
-    }}
-
-def ask_p1(jpg_bytes):
+def ask_p1(frame_jpg, ref_images):
     time.sleep(1.5)
+    content = []
+    for ref in ref_images:
+        content.append(img_block(ref))
+    content.append(img_block(frame_jpg))
+    content.append({"type": "text", "text": P1_CAR_PROMPT})
     try:
-        r = client.messages.create(model=MODEL, max_tokens=300, messages=[{
-            "role": "user", "content": [img_block(jpg_bytes), {"type": "text", "text": P1_PROMPT}]
-        }])
+        r = client.messages.create(model=MODEL, max_tokens=500,
+            messages=[{"role": "user", "content": content}])
         t = r.content[0].text.strip()
         if "```" in t: t = t.split("```")[1].lstrip("json").strip()
         return json.loads(t)
     except Exception as e:
         print(f"  p1 err: {e}")
-        return {"silver_detected": False, "cars": [], "scene": "unknown"}
+        return {"detected": False, "cars": [], "drivers": [], "scene": "unknown"}
 
-def ask_p2_batch(frames_batch):
-    """Send up to 5 frames at once, get per-frame Silver detection."""
+def ask_p2_batch(batch, ref_images):
     time.sleep(2)
     content = []
-    for sec, jpg in frames_batch:
+    for ref in ref_images:
+        content.append(img_block(ref))
+    for sec, jpg in batch:
         content.append(img_block(jpg))
         content.append({"type": "text", "text": f"[Frame at {sec}s]"})
     content.append({"type": "text", "text": P2_PROMPT})
     try:
-        r = client.messages.create(model=MODEL, max_tokens=800, messages=[{"role": "user", "content": content}])
+        r = client.messages.create(model=MODEL, max_tokens=1000,
+            messages=[{"role": "user", "content": content}])
         t = r.content[0].text.strip()
         if "```" in t: t = t.split("```")[1].lstrip("json").strip()
         return json.loads(t)
     except Exception as e:
         print(f"  p2 err: {e}")
-        return [{"second": s, "silver_detected": False, "cars": []} for s, _ in frames_batch]
+        return [{"second": s, "detected": False, "cars": [], "drivers": []} for s, _ in batch]
 
-def find_silver_windows(frame_results, car_number=None, min_conf=0.5):
-    """Find contiguous windows where a specific car (or any Silver) is visible."""
+def find_windows(frame_results, key_fn, min_conf=0.5):
     hot = set()
     for f in frame_results:
-        if not f.get("silver_detected"):
+        if not f.get("detected"):
             continue
-        for c in f.get("cars", []):
-            if c.get("confidence", 0) >= min_conf:
-                if car_number is None or c.get("number") == car_number:
-                    hot.add(f["second"])
+        if key_fn(f, min_conf):
+            hot.add(f["second"])
     if not hot:
         return []
-    # merge into contiguous windows with 1s padding
     secs = sorted(hot)
-    windows = []
-    start = secs[0]
-    prev = secs[0]
+    windows, start, prev = [], secs[0], secs[0]
     for s in secs[1:]:
         if s - prev > 2:
             windows.append((max(0, start - 1), prev + 2))
@@ -188,49 +219,38 @@ def fcpt(secs):
     f = round(secs * 24000 / 1001)
     return f"{f * 1001}/24000s"
 
-def write_fcpxml(out_dir, event_name, clips_by_car):
-    """Generate one FCPXML per car number with trimmed clips."""
-    for car_label, clips in clips_by_car.items():
+def write_fcpxml(out_dir, event_name, clips_by_subject):
+    for label, clips in clips_by_subject.items():
         if not clips:
             continue
-        xml_path = out_dir / f"{event_name}_{car_label}.fcpxml"
+        xml_path = out_dir / f"{event_name}_{label.replace(' ','_')}.fcpxml"
         total = 0.0
-        asset_lines = []
-        clip_lines = []
+        assets, spine = [], []
         for i, c in enumerate(clips):
             aid = f"a{i}"
             dur = c["end"] - c["start"]
-            asset_lines.append(
-                f'    <asset id="{aid}" name="{c["name"]}" '
-                f'src="file://{c["path"]}" start="0s" '
-                f'duration="{fcpt(c["full_dur"])}" hasVideo="1" hasAudio="1"/>'
+            assets.append(
+                f'    <asset id="{aid}" name="{c["name"]}" src="file://{c["path"]}" '
+                f'start="0s" duration="{fcpt(c["full_dur"])}" hasVideo="1" hasAudio="1"/>'
             )
-            clip_lines.append(
+            spine.append(
                 f'      <clip name="{c["name"]}" offset="{fcpt(total)}" '
                 f'duration="{fcpt(dur)}" start="{fcpt(c["start"])}">'
                 f'<video ref="{aid}"/></clip>'
             )
             total += dur
-
-        xml = f"""<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE fcpxml>
-<fcpxml version="1.10">
-  <resources>
-    <format id="r1" name="FFVideoFormat1080p24" frameDuration="1001/24000s" width="1920" height="1080"/>
-{"".join(chr(10) + l for l in asset_lines)}
-  </resources>
-  <library>
-    <event name="{event_name} — {car_label}">
-      <project name="{event_name}_{car_label}">
-        <sequence format="r1" duration="{fcpt(total)}" tcStart="0s">
-          <spine>
-{"".join(chr(10) + l for l in clip_lines)}
-          </spine>
-        </sequence>
-      </project>
-    </event>
-  </library>
-</fcpxml>"""
+        xml = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE fcpxml>\n'
+            '<fcpxml version="1.10">\n  <resources>\n'
+            '    <format id="r1" name="FFVideoFormat1080p24" frameDuration="1001/24000s" width="1920" height="1080"/>\n'
+            + "\n".join(assets) +
+            '\n  </resources>\n  <library>\n'
+            f'    <event name="{event_name} — {label}">\n'
+            f'      <project name="{event_name}_{label}">\n'
+            f'        <sequence format="r1" duration="{fcpt(total)}" tcStart="0s">\n'
+            '          <spine>\n' + "\n".join(spine) +
+            '\n          </spine>\n        </sequence>\n      </project>\n    </event>\n  </library>\n</fcpxml>'
+        )
         xml_path.write_text(xml)
         print(f"  FCPXML: {xml_path.name} ({len(clips)} clips, {total:.0f}s)")
 
@@ -257,16 +277,17 @@ def main():
 
     event_name = sys.argv[1].capitalize()
     event = EVENTS[sys.argv[1]]
-    out_dir = event["out"]
-    log_path = event["log"]
-
+    out_dir, log_path = event["out"], event["log"]
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    ref_images = load_ref_images()
+    print(f"Reference photos loaded: {len(ref_images)}")
+
     log = json.load(open(log_path)) if log_path.exists() else {}
-
     clips = all_clips(event)
-    print(f"\n{event_name}: {len(clips)} clips total\n")
+    print(f"\n{event_name}: {len(clips)} clips\n")
 
-    # ── Phase 1: quick scan ────────────────────────────────────────────────────
+    # ── Phase 1 ───────────────────────────────────────────────────────────────
     print("="*60)
     print("PHASE 1 — Quick scan (1 frame per clip)")
     print("="*60)
@@ -275,7 +296,7 @@ def main():
     for i, (folder_name, clip_path) in enumerate(clips):
         key = f"p1:{clip_path}"
         if key in log:
-            if log[key].get("silver_detected"):
+            if log[key].get("detected"):
                 p1_matches.append(clip_path)
             continue
 
@@ -286,99 +307,124 @@ def main():
         jpg = extract_frame(clip_path, at_sec)
         if not jpg:
             print("— no frame")
-            log[key] = {"silver_detected": False, "error": "no_frame"}
+            log[key] = {"detected": False, "error": "no_frame"}
             json.dump(log, open(log_path, "w"), indent=2)
             continue
 
-        result = ask_p1(jpg)
+        result = ask_p1(jpg, ref_images)
         result["folder"] = folder_name
         log[key] = result
 
-        if result.get("silver_detected"):
+        if result.get("detected"):
             p1_matches.append(clip_path)
-            cars = ", ".join(f"#{c.get('number')} {c.get('make')}" for c in result.get("cars", []))
-            print(f"✓ {cars}")
+            cars = [f"#{c.get('number')} {c.get('make')}" for c in result.get("cars", [])]
+            drivers = [f"{d.get('name')} ({'helmet' if d.get('helmet_on') else 'face'}, {int(d.get('confidence',0)*100)}%)"
+                       for d in result.get("drivers", []) if d.get("name")]
+            hits = ", ".join(cars + drivers)
+            print(f"✓ {hits or 'detected'} [{result.get('scene','?')}]")
         else:
-            print(f"— no Silver ({result.get('scene','?')})")
+            print(f"— nothing [{result.get('scene','?')}]")
 
         json.dump(log, open(log_path, "w"), indent=2)
 
-    print(f"\nPhase 1 done — {len(p1_matches)} clips with Silver cars\n")
+    print(f"\nPhase 1 done — {len(p1_matches)} clips matched\n")
 
-    # ── Phase 2: 1fps detail scan on matches ───────────────────────────────────
+    # ── Phase 2 ───────────────────────────────────────────────────────────────
     print("="*60)
     print(f"PHASE 2 — 1fps detail scan ({len(p1_matches)} clips)")
     print("="*60)
 
-    clips_by_car = {}
+    clips_by_subject = {}
 
     for i, clip_path in enumerate(p1_matches):
         key = f"p2:{clip_path}"
         if key in log:
             frame_results = log[key]["frame_results"]
         else:
-            dur = clip_duration(clip_path)
-            print(f"[{i+1}/{len(p1_matches)}] {clip_path.name} ({dur:.0f}s) — extracting frames...")
-            frames = extract_frames_1fps(clip_path, dur)
+            full_dur = clip_duration(clip_path)
+            print(f"[{i+1}/{len(p1_matches)}] {clip_path.name} ({full_dur:.0f}s)")
+            frames = extract_frames_1fps(clip_path)
             if not frames:
                 print("  no frames")
                 continue
 
             frame_results = []
-            batch_size = 4
-            for b in range(0, len(frames), batch_size):
-                batch = frames[b:b+batch_size]
-                results = ask_p2_batch(batch)
-                frame_results.extend(results if isinstance(results, list) else [])
-                detected = [r for r in results if r.get("silver_detected")]
-                print(f"  frames {b}-{b+len(batch)-1}: {len(detected)} with Silver", flush=True)
+            for b in range(0, len(frames), 4):
+                batch = frames[b:b+4]
+                results = ask_p2_batch(batch, ref_images)
+                if isinstance(results, list):
+                    frame_results.extend(results)
+                hits = [r for r in (results if isinstance(results, list) else []) if r.get("detected")]
+                print(f"  frames {b}-{b+len(batch)-1}: {len(hits)} hits", flush=True)
 
             log[key] = {"frame_results": frame_results}
             json.dump(log, open(log_path, "w"), indent=2)
 
-        # find all car numbers detected in this clip
-        car_numbers = set()
-        for f in frame_results:
-            for c in f.get("cars", []):
-                if c.get("confidence", 0) >= 0.5 and f.get("silver_detected"):
-                    num = c.get("number")
-                    make = c.get("make", "unknown")
-                    car_numbers.add((num, make))
-
         full_dur = clip_duration(clip_path)
 
-        for num, make in car_numbers:
-            windows = find_silver_windows(frame_results, car_number=num)
-            label = f"Car_{num:02d}" if num else f"{make}_unknown"
+        # collect all subjects (cars by number, drivers by name)
+        subjects = set()
+        for f in frame_results:
+            if not f.get("detected"):
+                continue
+            for c in f.get("cars", []):
+                if c.get("confidence", 0) >= 0.5:
+                    num = c.get("number")
+                    # map car number to driver names
+                    for cont in CONTENDERS:
+                        if cont["number"] == num:
+                            for d in cont["drivers"]:
+                                if d in ACADEMY_DRIVERS:
+                                    subjects.add(d)
+            for d in f.get("drivers", []):
+                if d.get("confidence", 0) >= 0.4 and d.get("name") in ACADEMY_DRIVERS:
+                    subjects.add(d["name"])
 
-            if label not in clips_by_car:
-                clips_by_car[label] = []
+        for subject in subjects:
+            label = subject.replace(" ", "_")
+
+            # windows where this subject appears
+            def key_fn(f, min_conf, s=subject):
+                for c in f.get("cars", []):
+                    if c.get("confidence", 0) >= min_conf:
+                        for cont in CONTENDERS:
+                            if cont["number"] == c.get("number") and s in cont["drivers"]:
+                                return True
+                for d in f.get("drivers", []):
+                    if d.get("name") == s and d.get("confidence", 0) >= min_conf:
+                        return True
+                return False
+
+            windows = find_windows(frame_results, key_fn, min_conf=0.4)
+            if not windows:
+                continue
+
+            if label not in clips_by_subject:
+                clips_by_subject[label] = []
+
+            dest_dir = out_dir / label
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            dest = dest_dir / clip_path.name
+            if not dest.exists():
+                shutil.copy2(clip_path, dest)
 
             for start, end in windows:
-                end = min(end, full_dur)
-                clips_by_car[label].append({
+                clips_by_subject[label].append({
                     "name": clip_path.stem,
                     "path": str(clip_path),
                     "start": start,
-                    "end": end,
+                    "end": min(end, full_dur),
                     "full_dur": full_dur,
                 })
-                # copy full clip to folder
-                dest_dir = out_dir / label
-                dest_dir.mkdir(parents=True, exist_ok=True)
-                dest = dest_dir / clip_path.name
-                if not dest.exists():
-                    shutil.copy2(clip_path, dest)
 
-            print(f"  → {label}: {len(windows)} windows")
+            print(f"  → {subject}: {len(windows)} windows")
 
     # ── FCPXML ────────────────────────────────────────────────────────────────
-    print(f"\n{'='*60}")
-    print("Generating FCPXMLs...")
-    write_fcpxml(out_dir, event_name, clips_by_car)
+    print(f"\n{'='*60}\nGenerating FCPXMLs...")
+    write_fcpxml(out_dir, event_name, clips_by_subject)
 
-    total_clips = sum(len(v) for v in clips_by_car.values())
-    print(f"\nDone — {total_clips} trimmed clips across {len(clips_by_car)} cars")
+    total = sum(len(v) for v in clips_by_subject.values())
+    print(f"\nDone — {total} clips across {len(clips_by_subject)} subjects")
     print(f"Output: {out_dir}")
 
 if __name__ == "__main__":
