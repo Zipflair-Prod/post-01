@@ -36,7 +36,7 @@ EVENTS = {
         ],
     },
     "mandalika": {
-        "base":    Path("/Volumes/SSD12/260430_MANDALIKA_MEDIA/3. MEDIA/VIDEO/FOOTAGE FILMED"),
+        "base":    Path("/Volumes/SSD12/260509 - GTWCA MANDALIKA/3. MEDIA/VIDEO/FOOTAGE FILMED"),
         "out":     Path("/Volumes/SSD12/Silver_Selects/Mandalika"),
         "log":     Path("/Volumes/SSD12/Silver_Selects/mandalika_log.json"),
         "folders": [
