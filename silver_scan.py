@@ -17,8 +17,8 @@ MODEL = "claude-haiku-4-5-20251001"
 EVENTS = {
     "sepang": {
         "base": Path("/Volumes/SSD8/260401 - GTWCA SEPANG/2. ASSETS/2. VIDEOS"),
-        "out":  Path("/Volumes/SSD8/260401 - GTWCA SEPANG/Silver_Selects"),
-        "log":  Path("/Volumes/SSD8/260401 - GTWCA SEPANG/silver_scan_log.json"),
+        "out":  Path("/Volumes/SSD12/Silver_Selects/Sepang"),
+        "log":  Path("/Volumes/SSD12/Silver_Selects/sepang_scan_log.json"),
         "folders": [
             "CARD 1",
             "CARD 2",
@@ -38,8 +38,8 @@ EVENTS = {
     },
     "mandalika": {
         "base": Path("/Volumes/SSD12/260430_MANDALIKA_MEDIA/3. MEDIA/VIDEO/FOOTAGE FILMED"),
-        "out":  Path("/Volumes/SSD12/260430_MANDALIKA_MEDIA/Silver_Selects"),
-        "log":  Path("/Volumes/SSD12/260430_MANDALIKA_MEDIA/silver_scan_log.json"),
+        "out":  Path("/Volumes/SSD12/Silver_Selects/Mandalika"),
+        "log":  Path("/Volumes/SSD12/Silver_Selects/mandalika_scan_log.json"),
         "folders": [
             "CARD 3 - PP1",
             "CARD 4 - PP2",
@@ -170,8 +170,9 @@ def main():
             print(f"  [skip] not found: {folder_name}")
             continue
 
-        # rglob handles subfolders automatically
-        clips = sorted(folder.rglob("*.MP4")) + sorted(folder.rglob("*.mp4"))
+        # rglob handles subfolders; skip macOS metadata stubs
+        clips = sorted(p for p in folder.rglob("*.MP4") if not p.name.startswith("._")) + \
+                sorted(p for p in folder.rglob("*.mp4") if not p.name.startswith("._"))
         print(f"\n{'='*60}")
         print(f"{folder_name}: {len(clips)} clips")
         print(f"{'='*60}")
