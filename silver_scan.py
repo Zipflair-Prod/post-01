@@ -158,25 +158,38 @@ def extract_frames_1fps(path, scale=640):
             frames.append((sec, p.read_bytes()))
     return frames
 
+def ask_with_retry(content, max_tokens=500):
+    for attempt in range(5):
+        try:
+            time.sleep(2 + attempt * 3)
+            r = client.messages.create(model=MODEL, max_tokens=max_tokens,
+                messages=[{"role": "user", "content": content}])
+            t = r.content[0].text.strip()
+            if "```" in t: t = t.split("```")[1].lstrip("json").strip()
+            return json.loads(t)
+        except Exception as e:
+            msg = str(e)
+            if "429" in msg:
+                wait = 15 * (attempt + 1)
+                print(f"  rate limit — waiting {wait}s...", flush=True)
+                time.sleep(wait)
+            else:
+                print(f"  err: {e}")
+                return None
+    return None
+
 def ask_p1(frame_jpg, ref_images):
-    time.sleep(1.5)
     content = []
     for ref in ref_images:
         content.append(img_block(ref))
     content.append(img_block(frame_jpg))
     content.append({"type": "text", "text": P1_CAR_PROMPT})
-    try:
-        r = client.messages.create(model=MODEL, max_tokens=500,
-            messages=[{"role": "user", "content": content}])
-        t = r.content[0].text.strip()
-        if "```" in t: t = t.split("```")[1].lstrip("json").strip()
-        return json.loads(t)
-    except Exception as e:
-        print(f"  p1 err: {e}")
+    result = ask_with_retry(content, max_tokens=500)
+    if result is None:
         return {"detected": False, "cars": [], "drivers": [], "scene": "unknown"}
+    return result
 
 def ask_p2_batch(batch, ref_images):
-    time.sleep(2)
     content = []
     for ref in ref_images:
         content.append(img_block(ref))
@@ -184,15 +197,10 @@ def ask_p2_batch(batch, ref_images):
         content.append(img_block(jpg))
         content.append({"type": "text", "text": f"[Frame at {sec}s]"})
     content.append({"type": "text", "text": P2_PROMPT})
-    try:
-        r = client.messages.create(model=MODEL, max_tokens=1000,
-            messages=[{"role": "user", "content": content}])
-        t = r.content[0].text.strip()
-        if "```" in t: t = t.split("```")[1].lstrip("json").strip()
-        return json.loads(t)
-    except Exception as e:
-        print(f"  p2 err: {e}")
+    result = ask_with_retry(content, max_tokens=1000)
+    if result is None or not isinstance(result, list):
         return [{"second": s, "detected": False, "cars": [], "drivers": []} for s, _ in batch]
+    return result
 
 def find_windows(frame_results, key_fn, min_conf=0.5):
     hot = set()
