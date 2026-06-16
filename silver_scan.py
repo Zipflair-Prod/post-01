@@ -241,10 +241,13 @@ def all_clips(event):
     for folder_name in event["folders"]:
         folder = event["base"] / folder_name
         if not folder.exists():
+            print(f"  [skip] not found: {folder_name}")
             continue
-        for p in sorted(folder.rglob("*.MP4")):
-            if not p.name.startswith("._"):
-                clips.append((folder_name, p))
+        found = sorted(
+            p for p in folder.rglob("*")
+            if p.suffix.lower() == ".mp4" and not p.name.startswith("._")
+        )
+        clips.extend((folder_name, p) for p in found)
     return clips
 
 def main():
