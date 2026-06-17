@@ -364,11 +364,15 @@ def repack(event_name, event):
         return
     log = json.load(open(log_path))
 
-    # Wipe existing driver folders (leave FCPXMLs for now)
+    # Clear only video files from driver folders (._metadata stubs stay, that's fine)
     for d in out_dir.iterdir():
         if d.is_dir():
-            shutil.rmtree(d, ignore_errors=True)
-            print(f"  cleared: {d.name}/")
+            removed = 0
+            for f in d.iterdir():
+                if f.suffix.lower() == ".mp4":
+                    f.unlink()
+                    removed += 1
+            print(f"  cleared {removed} clips from {d.name}/")
 
     clips_by_subject = {}
     for key, val in sorted(log.items()):
