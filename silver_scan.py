@@ -367,7 +367,7 @@ def repack(event_name, event):
     # Wipe existing driver folders (leave FCPXMLs for now)
     for d in out_dir.iterdir():
         if d.is_dir():
-            shutil.rmtree(d)
+            shutil.rmtree(d, ignore_errors=True)
             print(f"  cleared: {d.name}/")
 
     clips_by_subject = {}
