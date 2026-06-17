@@ -369,15 +369,15 @@ def repack(event_name, event, dryrun=False):
     if dryrun:
         print(f"=== DRYRUN — no files will be touched ===")
     else:
-        # Clear only video files from driver folders
+        import subprocess
         for d in out_dir.iterdir():
             if d.is_dir():
-                removed = 0
-                for f in d.iterdir():
-                    if f.suffix.lower() == ".mp4":
-                        f.unlink()
-                        removed += 1
-                print(f"  cleared {removed} clips from {d.name}/")
+                result = subprocess.run(
+                    ["find", str(d), "-maxdepth", "1", "-iname", "*.mp4", "-delete"],
+                    capture_output=True
+                )
+                remaining = list(d.glob("*.MP4")) + list(d.glob("*.mp4"))
+                print(f"  cleared {d.name}/ ({len(remaining)} remaining after delete)")
 
     attribution = {}  # driver -> [clip names]
     clips_by_subject = {}
