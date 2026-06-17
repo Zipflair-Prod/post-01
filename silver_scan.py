@@ -482,18 +482,120 @@ def repack(event_name, event, dryrun=False):
         total = sum(len(v) for v in clips_by_subject.values())
         print(f"\nDone — {total} clips across {len(clips_by_subject)} subjects")
 
+def extract_car(event_name, event, car_number):
+    """Copy all clips where a specific car number was detected into a dedicated folder."""
+    log_path = event["log"]
+    out_dir = event["out"]
+    if not log_path.exists():
+        print("No log found — run the full scan first.")
+        return
+    log = json.load(open(log_path))
+    label = f"Car_{car_number}"
+    dest_dir = out_dir / label
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    clips = []
+    for key, val in sorted(log.items()):
+        if not key.startswith("p2:"):
+            continue
+        clip_path = Path(key[3:])
+        frame_results = val.get("frame_results", [])
+        found = any(
+            c.get("number") == car_number and c.get("confidence", 0) >= 0.6
+            for f in frame_results if f.get("detected")
+            for c in f.get("cars", [])
+        )
+        if not found:
+            continue
+        print(f"  {clip_path.name}")
+        if clip_path.exists():
+            dest = dest_dir / clip_path.name
+            if not dest.exists():
+                shutil.copy2(clip_path, dest)
+            full_dur = clip_duration(clip_path)
+            clips.append({"name": clip_path.stem, "path": str(clip_path),
+                          "start": 0.0, "end": full_dur, "full_dur": full_dur})
+    print(f"\n{len(clips)} clips → {dest_dir}")
+    if clips:
+        xml, _ = build_xml(clips, event_name, label)
+        xml_path = out_dir / f"{event_name}_{label}.fcpxml"
+        xml_path.write_text(xml)
+        print(f"FCPXML: {xml_path.name}")
+
+def faces_repack(event_name, event):
+    """Repack using face/helmet detection only — no car attribution."""
+    log_path = event["log"]
+    out_dir = event["out"]
+    if not log_path.exists():
+        print("No log found.")
+        return
+    log = json.load(open(log_path))
+    clips_by_subject = {}
+    for key, val in sorted(log.items()):
+        if not key.startswith("p2:"):
+            continue
+        clip_path = Path(key[3:])
+        if not clip_path.exists():
+            continue
+        frame_results = val.get("frame_results", [])
+        # Count face detections per named driver only
+        hits = {}
+        for f in frame_results:
+            if not f.get("detected"):
+                continue
+            for d in f.get("drivers", []):
+                if d.get("name") in ACADEMY_DRIVERS and d.get("confidence", 0) >= 0.6:
+                    hits[d["name"]] = hits.get(d["name"], 0) + 1
+        if not hits:
+            continue
+        subject = max(hits, key=lambda d: (hits[d], -ACADEMY_DRIVERS.index(d)))
+        label = subject.replace(" ", "_")
+        dest_dir = out_dir / f"Faces_{label}"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / clip_path.name
+        if not dest.exists():
+            shutil.copy2(clip_path, dest)
+        full_dur = clip_duration(clip_path)
+        clips_by_subject.setdefault(label, []).append({
+            "name": clip_path.stem, "path": str(clip_path),
+            "start": 0.0, "end": full_dur, "full_dur": full_dur,
+        })
+        print(f"  {clip_path.name} → {subject}")
+    print(f"\n=== Faces summary ===")
+    for driver, clips in sorted(clips_by_subject.items()):
+        print(f"  {driver}: {len(clips)} clips")
+    # Write combined FCPXML
+    all_clips = []
+    seen = set()
+    for driver in ACADEMY_DRIVERS:
+        for c in sorted(clips_by_subject.get(driver.replace(" ","_"), []), key=lambda x: x["name"]):
+            if c["path"] not in seen:
+                seen.add(c["path"])
+                all_clips.append(c)
+    if all_clips:
+        xml, _ = build_xml(all_clips, event_name, "FACES_ALL")
+        (out_dir / f"{event_name}_FACES_ALL.fcpxml").write_text(xml)
+        print(f"FCPXML: {event_name}_FACES_ALL.fcpxml ({len(all_clips)} clips)")
+
 def main():
     fcpxml_only = "--fcpxml" in sys.argv
     repack_only = "--repack" in sys.argv
     dryrun = "--dryrun" in sys.argv
+    faces_only = "--faces" in sys.argv
+    car_arg = next((a for a in sys.argv[1:] if a.startswith("--car=")), None)
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     if not args or args[0] not in EVENTS:
-        print("Usage: python3 silver_scan.py sepang|mandalika [--repack|--dryrun|--fcpxml]")
+        print("Usage: python3 silver_scan.py sepang|mandalika [--repack|--dryrun|--faces|--car=NUM]")
         sys.exit(1)
 
     event_name = args[0].capitalize()
     event = EVENTS[args[0]]
 
+    if car_arg:
+        extract_car(event_name, event, int(car_arg.split("=")[1]))
+        return
+    if faces_only:
+        faces_repack(event_name, event)
+        return
     if repack_only or fcpxml_only or dryrun:
         repack(event_name, event, dryrun=dryrun)
         return
