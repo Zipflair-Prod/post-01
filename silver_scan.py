@@ -254,17 +254,15 @@ def write_fcpxml(out_dir, event_name, clips_by_subject):
         assets, spine = [], []
         for i, c in enumerate(clips):
             aid = f"a{i}"
-            tc_start = clip_tc_start(c["path"])
             dur = c["end"] - c["start"]
-            clip_start = tc_start + c["start"]
             encoded_path = quote(c["path"], safe="/:")
             assets.append(
                 f'    <asset id="{aid}" name="{c["name"]}" src="file://{encoded_path}" '
-                f'start="{fcpt(tc_start)}" duration="{fcpt(c["full_dur"])}" hasVideo="1" hasAudio="1"/>'
+                f'start="0s" duration="{fcpt(c["full_dur"])}" hasVideo="1" hasAudio="1"/>'
             )
             spine.append(
                 f'      <clip name="{c["name"]}" offset="{fcpt(total)}" '
-                f'duration="{fcpt(dur)}" start="{fcpt(clip_start)}">'
+                f'duration="{fcpt(dur)}" start="{fcpt(c["start"])}">'
                 f'<video ref="{aid}"/></clip>'
             )
             total += dur
