@@ -54,7 +54,7 @@ EVENTS = {
 # 7 GT Academy contenders — car number, make, livery, driver name(s)
 CONTENDERS = [
     {"number": 10,  "make": "BMW M4 GT3",              "livery": "blue & gold",         "drivers": ["Maxime Oosten", "Brian Lee"]},
-    {"number": 16,  "make": "Audi R8 LMS GT3 EVO II",  "livery": "red & silver",        "drivers": ["James Yu Kuai", "Cheng Congfu"]},
+    {"number": 15,  "make": "Audi R8 LMS GT3 EVO II",  "livery": "red & silver",        "drivers": ["James Yu Kuai", "Cheng Congfu"]},
     {"number": 27,  "make": "Mercedes-AMG GT3",         "livery": "white & green",       "drivers": ["Elias Seppanen", "Li Lichao"]},
     {"number": 29,  "make": "Lamborghini Huracan GT3",  "livery": "dark navy",           "drivers": ["Akash Neil Nandy"]},
     {"number": 96,  "make": "Ferrari 296 GT3",          "livery": "grey & red",          "drivers": ["Deng Yi", "Kaishun Liu"]},
