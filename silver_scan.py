@@ -324,36 +324,38 @@ SHARED_CAR_NUMBERS = {
     for num in [cont["number"]]
 }
 
-def subjects_for_clip(frame_results):
+def primary_subject_for_clip(frame_results):
     """
-    Return set of Academy driver names this clip should be attributed to.
+    Return a single Academy driver name — the one detected in the most frames.
     Rules:
-      - Driver face: name in ACADEMY_DRIVERS, confidence >= 0.6
-      - Car (solo car): number matches exactly one Academy driver, confidence >= 0.75,
-        car number not in SHARED_CAR_NUMBERS
-      - Shared car (#96 etc.): ONLY via face detection above
+      - Driver face: name in ACADEMY_DRIVERS, confidence >= 0.6  → counts as 1 hit per frame
+      - Car (solo-driver car): confidence >= 0.75, not shared → counts as 1 hit per frame
+      - Shared car (#96 etc.): face detection only
+    Returns None if no qualifying detections.
     """
-    subjects = set()
+    hits = {}  # driver name → frame count
     for f in frame_results:
         if not f.get("detected"):
             continue
-        # Named face detections
+        frame_subjects = set()
         for d in f.get("drivers", []):
             if d.get("name") in ACADEMY_DRIVERS and d.get("confidence", 0) >= 0.6:
-                subjects.add(d["name"])
-        # Car detections — solo-car only, high confidence
+                frame_subjects.add(d["name"])
         for c in f.get("cars", []):
             num = c.get("number")
-            if num is None or c.get("confidence", 0) < 0.75:
+            if num is None or c.get("confidence", 0) < 0.75 or num in SHARED_CAR_NUMBERS:
                 continue
-            if num in SHARED_CAR_NUMBERS:
-                continue  # need face detection for shared cars
             for cont in CONTENDERS:
                 if cont["number"] == num:
                     academy_in_car = [d for d in cont["drivers"] if d in ACADEMY_DRIVERS]
                     if len(academy_in_car) == 1:
-                        subjects.add(academy_in_car[0])
-    return subjects
+                        frame_subjects.add(academy_in_car[0])
+        for s in frame_subjects:
+            hits[s] = hits.get(s, 0) + 1
+    if not hits:
+        return None
+    # Return the driver with the most frame appearances; tie-break by ACADEMY_DRIVERS order
+    return max(hits, key=lambda d: (hits[d], -ACADEMY_DRIVERS.index(d)))
 
 def repack(event_name, event, dryrun=False):
     """Clear driver folders and rebuild cleanly from the Phase 2 log."""
@@ -379,57 +381,38 @@ def repack(event_name, event, dryrun=False):
 
     attribution = {}  # driver -> [clip names]
     clips_by_subject = {}
-    skipped = []
     for key, val in sorted(log.items()):
         if not key.startswith("p2:"):
             continue
         clip_path = Path(key[3:])
         frame_results = val.get("frame_results", [])
-        subjects = subjects_for_clip(frame_results)
+        subject = primary_subject_for_clip(frame_results)
 
-        if not subjects:
-            all_cars, all_drvs = [], []
-            for f in frame_results:
-                for c in f.get("cars", []):
-                    if c.get("number") is not None:
-                        all_cars.append((c.get("number"), round(c.get("confidence",0),2)))
-                for d in f.get("drivers", []):
-                    if d.get("name"):
-                        all_drvs.append((d.get("name"), round(d.get("confidence",0),2)))
-            if all_cars or all_drvs:
-                skipped.append(f"  SKIP {clip_path.name}: cars={all_cars[:2]} drivers={all_drvs[:2]}")
+        if not subject:
             continue
 
-        for subject in subjects:
-            attribution.setdefault(subject, []).append(clip_path.name)
-
-        print(f"  {clip_path.name} → {', '.join(sorted(subjects))}")
+        attribution.setdefault(subject, []).append(clip_path.name)
+        print(f"  {clip_path.name} → {subject}")
 
         if not dryrun and clip_path.exists():
             full_dur = clip_duration(clip_path)
-            for subject in subjects:
-                label = subject.replace(" ", "_")
-                dest_dir = out_dir / label
-                dest_dir.mkdir(parents=True, exist_ok=True)
-                dest = dest_dir / clip_path.name
-                if not dest.exists():
-                    shutil.copy2(clip_path, dest)
-                clips_by_subject.setdefault(label, []).append({
-                    "name": clip_path.stem,
-                    "path": str(clip_path),
-                    "start": 0.0,
-                    "end": full_dur,
-                    "full_dur": full_dur,
-                })
+            label = subject.replace(" ", "_")
+            dest_dir = out_dir / label
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            dest = dest_dir / clip_path.name
+            if not dest.exists():
+                shutil.copy2(clip_path, dest)
+            clips_by_subject.setdefault(label, []).append({
+                "name": clip_path.stem,
+                "path": str(clip_path),
+                "start": 0.0,
+                "end": full_dur,
+                "full_dur": full_dur,
+            })
 
     print(f"\n=== Attribution summary ===")
     for driver, clips in sorted(attribution.items()):
         print(f"  {driver}: {len(clips)} clips")
-    if skipped:
-        print(f"\n=== Skipped (detected but below threshold / shared car) ===")
-        for s in skipped[:20]:
-            print(s)
-
     if not dryrun:
         print(f"\nGenerating FCPXMLs for {event_name}...")
         write_fcpxml(out_dir, event_name, clips_by_subject)
