@@ -317,76 +317,111 @@ def all_clips(event):
         clips.extend((folder_name, p) for p in found)
     return clips
 
-def rebuild_fcpxml_from_log(event_name, event):
-    """Regenerate FCPXMLs from existing log without re-scanning."""
+# Cars shared between two Academy drivers — attribution by face only, never car alone
+SHARED_CAR_NUMBERS = {
+    num for cont in CONTENDERS
+    if sum(1 for d in cont["drivers"] if d in ACADEMY_DRIVERS) > 1
+    for num in [cont["number"]]
+}
+
+def subjects_for_clip(frame_results):
+    """
+    Return set of Academy driver names this clip should be attributed to.
+    Rules:
+      - Driver face: name in ACADEMY_DRIVERS, confidence >= 0.6
+      - Car (solo car): number matches exactly one Academy driver, confidence >= 0.75,
+        car number not in SHARED_CAR_NUMBERS
+      - Shared car (#96 etc.): ONLY via face detection above
+    """
+    subjects = set()
+    for f in frame_results:
+        if not f.get("detected"):
+            continue
+        # Named face detections
+        for d in f.get("drivers", []):
+            if d.get("name") in ACADEMY_DRIVERS and d.get("confidence", 0) >= 0.6:
+                subjects.add(d["name"])
+        # Car detections — solo-car only, high confidence
+        for c in f.get("cars", []):
+            num = c.get("number")
+            if num is None or c.get("confidence", 0) < 0.75:
+                continue
+            if num in SHARED_CAR_NUMBERS:
+                continue  # need face detection for shared cars
+            for cont in CONTENDERS:
+                if cont["number"] == num:
+                    academy_in_car = [d for d in cont["drivers"] if d in ACADEMY_DRIVERS]
+                    if len(academy_in_car) == 1:
+                        subjects.add(academy_in_car[0])
+    return subjects
+
+def repack(event_name, event):
+    """Clear driver folders and rebuild cleanly from the Phase 2 log."""
     log_path = event["log"]
     out_dir = event["out"]
     if not log_path.exists():
         print("No log found — run the full scan first.")
         return
     log = json.load(open(log_path))
+
+    # Wipe existing driver folders (leave FCPXMLs for now)
+    for d in out_dir.iterdir():
+        if d.is_dir():
+            shutil.rmtree(d)
+            print(f"  cleared: {d.name}/")
+
     clips_by_subject = {}
-    for key, val in log.items():
+    for key, val in sorted(log.items()):
         if not key.startswith("p2:"):
             continue
         clip_path = Path(key[3:])
+        if not clip_path.exists():
+            continue
         frame_results = val.get("frame_results", [])
         full_dur = clip_duration(clip_path)
-        subjects = set()
-        for f in frame_results:
-            if not f.get("detected"):
-                continue
-            for c in f.get("cars", []):
-                if c.get("confidence", 0) >= 0.5:
-                    for cont in CONTENDERS:
-                        if cont["number"] == c.get("number"):
-                            for d in cont["drivers"]:
-                                if d in ACADEMY_DRIVERS:
-                                    subjects.add(d)
-            for d in f.get("drivers", []):
-                if d.get("confidence", 0) >= 0.4 and d.get("name") in ACADEMY_DRIVERS:
-                    subjects.add(d["name"])
+        subjects = subjects_for_clip(frame_results)
+        if not subjects:
+            continue
+
         for subject in subjects:
             label = subject.replace(" ", "_")
-            def key_fn(f, min_conf, s=subject):
-                for c in f.get("cars", []):
-                    if c.get("confidence", 0) >= min_conf:
-                        for cont in CONTENDERS:
-                            if cont["number"] == c.get("number") and s in cont["drivers"]:
-                                return True
-                for d in f.get("drivers", []):
-                    if d.get("name") == s and d.get("confidence", 0) >= min_conf:
-                        return True
-                return False
-            windows = find_windows(frame_results, key_fn, min_conf=0.4)
-            if not windows:
-                continue
+            dest_dir = out_dir / label
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            dest = dest_dir / clip_path.name
+            if not dest.exists():
+                shutil.copy2(clip_path, dest)
             if label not in clips_by_subject:
                 clips_by_subject[label] = []
-            for start, end in windows:
-                clips_by_subject[label].append({
-                    "name": clip_path.stem,
-                    "path": str(clip_path),
-                    "start": start,
-                    "end": min(end, full_dur),
-                    "full_dur": full_dur,
-                })
-    print(f"Regenerating FCPXMLs for {event_name}...")
+            clips_by_subject[label].append({
+                "name": clip_path.stem,
+                "path": str(clip_path),
+                "start": 0.0,
+                "end": full_dur,
+                "full_dur": full_dur,
+            })
+        print(f"  {clip_path.name} → {', '.join(sorted(subjects))}")
+
+    print(f"\nGenerating FCPXMLs for {event_name}...")
     write_fcpxml(out_dir, event_name, clips_by_subject)
-    print("Done.")
+    total = sum(len(v) for v in clips_by_subject.values())
+    print(f"\nDone — {total} clips across {len(clips_by_subject)} subjects")
 
 def main():
     fcpxml_only = "--fcpxml" in sys.argv
+    repack_only = "--repack" in sys.argv
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     if not args or args[0] not in EVENTS:
-        print("Usage: python3 silver_scan.py sepang|mandalika [--fcpxml]")
+        print("Usage: python3 silver_scan.py sepang|mandalika [--fcpxml|--repack]")
         sys.exit(1)
 
     event_name = args[0].capitalize()
     event = EVENTS[args[0]]
 
+    if repack_only:
+        repack(event_name, event)
+        return
     if fcpxml_only:
-        rebuild_fcpxml_from_log(event_name, event)
+        repack(event_name, event)  # --fcpxml now also repacks cleanly
         return
     out_dir, log_path = event["out"], event["log"]
     out_dir.mkdir(parents=True, exist_ok=True)
