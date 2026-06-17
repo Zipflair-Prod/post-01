@@ -224,7 +224,24 @@ def find_windows(frame_results, key_fn, min_conf=0.5):
 
 # ── FCPXML ─────────────────────────────────────────────────────────────────────
 
-def fcpt(secs):
+def clip_fps(path):
+    """Return 25 or 24 based on ffprobe stream."""
+    try:
+        r = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0",
+             "-show_entries", "stream=r_frame_rate", "-of", "csv=p=0", str(path)],
+            capture_output=True, text=True, timeout=10
+        )
+        num, den = r.stdout.strip().split("/")
+        fps = int(num) / int(den)
+        return 25 if fps >= 24.9 else 24
+    except Exception:
+        return 24
+
+def fcpt(secs, fps=24):
+    if fps == 25:
+        f = round(secs * 25)
+        return f"{f}/25s"
     f = round(secs * 24000 / 1001)
     return f"{f * 1001}/24000s"
 
@@ -249,24 +266,31 @@ def build_xml(clips, event_name, label):
     total = 0.0
     assets, spine = [], []
     for i, c in enumerate(clips):
-        aid = f"r{i+2}"  # r1 is reserved for format
+        aid = f"r{i+2}"  # r1/r2 reserved for format elements
         dur = c["full_dur"]
+        fps = clip_fps(c["path"])
+        fmt_ref = "r1" if fps == 24 else "r2"
         encoded_path = quote(c["path"], safe="/:")
+        full_name = Path(c["path"]).name  # include extension so DaVinci can match
         assets.append(
-            f'    <asset id="{aid}" name="{c["name"]}" '
+            f'    <asset id="{aid}" name="{full_name}" '
             f'src="file://{encoded_path}" '
-            f'start="0s" duration="{fcpt(dur)}" '
-            f'hasVideo="1" hasAudio="1" format="r1"/>'
+            f'start="0s" duration="{fcpt(dur, fps)}" '
+            f'hasVideo="1" hasAudio="1" format="{fmt_ref}"/>'
         )
         spine.append(
-            f'      <clip name="{c["name"]}" ref="{aid}" '
-            f'offset="{fcpt(total)}" duration="{fcpt(dur)}" start="0s"/>'
+            f'      <clip name="{full_name}" ref="{aid}" '
+            f'offset="{fcpt(total, fps)}" duration="{fcpt(dur, fps)}" start="0s"/>'
         )
         total += dur
+    formats = (
+        '    <format id="r1" name="FFVideoFormat4K2398" frameDuration="1001/24000s" width="3840" height="2160"/>\n'
+        '    <format id="r2" name="FFVideoFormat4K25" frameDuration="1/25s" width="3840" height="2160"/>'
+    )
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE fcpxml>\n'
         '<fcpxml version="1.9">\n  <resources>\n'
-        '    <format id="r1" name="FFVideoFormat1080p2398" frameDuration="1001/24000s" width="3840" height="2160"/>\n'
+        + formats + "\n"
         + "\n".join(assets) +
         '\n  </resources>\n  <library>\n'
         f'    <event name="{event_name} — {label}">\n'
