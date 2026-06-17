@@ -275,6 +275,43 @@ def build_xml(clips, event_name, label):
         '\n          </spine>\n        </sequence>\n      </project>\n    </event>\n  </library>\n</fcpxml>'
     ), total
 
+def secs_to_edl_tc(secs):
+    h = int(secs // 3600)
+    m = int((secs % 3600) // 60)
+    s = int(secs % 60)
+    f = int((secs - int(secs)) * 25)
+    return f"{h:02d}:{m:02d}:{s:02d}:{f:02d}"
+
+def write_edl(out_dir, event_name, clips_by_subject):
+    # Combined EDL — all drivers in order, one clip per line
+    seen_paths = set()
+    all_clips_combined = []
+    for driver in ACADEMY_DRIVERS:
+        label = driver.replace(" ", "_")
+        for c in sorted(clips_by_subject.get(label, []), key=lambda c: c["name"]):
+            if c["path"] not in seen_paths:
+                seen_paths.add(c["path"])
+                all_clips_combined.append((driver, c))
+
+    edl_path = out_dir / f"{event_name}_ALL_DRIVERS.edl"
+    lines = [f"TITLE: {event_name} — All Silver Drivers", "FCM: NON-DROP FRAME", ""]
+    tl = 0.0
+    for i, (driver, c) in enumerate(all_clips_combined):
+        dur = c["full_dur"]
+        reel = c["name"][:8].replace(" ", "_")
+        src_in  = secs_to_edl_tc(0)
+        src_out = secs_to_edl_tc(dur)
+        tl_in   = secs_to_edl_tc(tl)
+        tl_out  = secs_to_edl_tc(tl + dur)
+        lines.append(f"{i+1:03d}  {reel:<8}  V  C  {src_in} {src_out} {tl_in} {tl_out}")
+        lines.append(f"* FROM CLIP NAME: {c['name']}")
+        lines.append(f"* DRIVER: {driver}")
+        lines.append(f"* SOURCE: {c['path']}")
+        lines.append("")
+        tl += dur
+    edl_path.write_text("\n".join(lines))
+    print(f"  EDL: {edl_path.name} ({len(all_clips_combined)} clips)")
+
 def write_fcpxml(out_dir, event_name, clips_by_subject):
     # Per-driver timelines
     for label, clips in clips_by_subject.items():
@@ -414,8 +451,9 @@ def repack(event_name, event, dryrun=False):
     for driver, clips in sorted(attribution.items()):
         print(f"  {driver}: {len(clips)} clips")
     if not dryrun:
-        print(f"\nGenerating FCPXMLs for {event_name}...")
+        print(f"\nGenerating timelines for {event_name}...")
         write_fcpxml(out_dir, event_name, clips_by_subject)
+        write_edl(out_dir, event_name, clips_by_subject)
         total = sum(len(v) for v in clips_by_subject.values())
         print(f"\nDone — {total} clips across {len(clips_by_subject)} subjects")
 
