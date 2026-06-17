@@ -491,7 +491,7 @@ def extract_car(event_name, event, car_number):
         return
     log = json.load(open(log_path))
     label = f"Car_{car_number}"
-    dest_dir = out_dir / label
+    dest_dir = out_dir / "Cars" / label
     dest_dir.mkdir(parents=True, exist_ok=True)
     clips = []
     for key, val in sorted(log.items()):
@@ -517,7 +517,7 @@ def extract_car(event_name, event, car_number):
     print(f"\n{len(clips)} clips → {dest_dir}")
     if clips:
         xml, _ = build_xml(clips, event_name, label)
-        xml_path = out_dir / f"{event_name}_{label}.fcpxml"
+        xml_path = out_dir / "Cars" / f"{event_name}_{label}.fcpxml"
         xml_path.write_text(xml)
         print(f"FCPXML: {xml_path.name}")
 
@@ -549,7 +549,7 @@ def faces_repack(event_name, event):
             continue
         subject = max(hits, key=lambda d: (hits[d], -ACADEMY_DRIVERS.index(d)))
         label = subject.replace(" ", "_")
-        dest_dir = out_dir / f"Faces_{label}"
+        dest_dir = out_dir / "Faces" / label
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest = dest_dir / clip_path.name
         if not dest.exists():
@@ -573,8 +573,8 @@ def faces_repack(event_name, event):
                 all_clips.append(c)
     if all_clips:
         xml, _ = build_xml(all_clips, event_name, "FACES_ALL")
-        (out_dir / f"{event_name}_FACES_ALL.fcpxml").write_text(xml)
-        print(f"FCPXML: {event_name}_FACES_ALL.fcpxml ({len(all_clips)} clips)")
+        (out_dir / "Faces" / f"{event_name}_FACES_ALL.fcpxml").write_text(xml)
+        print(f"FCPXML: Faces/{event_name}_FACES_ALL.fcpxml ({len(all_clips)} clips)")
 
 def main():
     fcpxml_only = "--fcpxml" in sys.argv
