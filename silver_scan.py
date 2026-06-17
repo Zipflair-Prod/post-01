@@ -227,6 +227,23 @@ def fcpt(secs):
     f = round(secs * 24000 / 1001)
     return f"{f * 1001}/24000s"
 
+def clip_tc_start(path):
+    """Read embedded start timecode from file, return as seconds. Falls back to 0."""
+    r = subprocess.run(
+        ["ffprobe", "-v", "quiet",
+         "-show_entries", "format_tags=timecode:stream_tags=timecode",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+        capture_output=True, text=True)
+    for line in r.stdout.strip().splitlines():
+        line = line.strip()
+        if ":" in line and len(line) == 11:
+            try:
+                h, m, s, f = [int(x) for x in line.replace(";", ":").split(":")]
+                return h * 3600 + m * 60 + s + f / 24.0
+            except:
+                pass
+    return 0.0
+
 def write_fcpxml(out_dir, event_name, clips_by_subject):
     for label, clips in clips_by_subject.items():
         if not clips:
@@ -236,14 +253,16 @@ def write_fcpxml(out_dir, event_name, clips_by_subject):
         assets, spine = [], []
         for i, c in enumerate(clips):
             aid = f"a{i}"
+            tc_start = clip_tc_start(c["path"])
             dur = c["end"] - c["start"]
+            clip_start = tc_start + c["start"]
             assets.append(
                 f'    <asset id="{aid}" name="{c["name"]}" src="file://{c["path"]}" '
-                f'start="0s" duration="{fcpt(c["full_dur"])}" hasVideo="1" hasAudio="1"/>'
+                f'start="{fcpt(tc_start)}" duration="{fcpt(c["full_dur"])}" hasVideo="1" hasAudio="1"/>'
             )
             spine.append(
                 f'      <clip name="{c["name"]}" offset="{fcpt(total)}" '
-                f'duration="{fcpt(dur)}" start="{fcpt(c["start"])}">'
+                f'duration="{fcpt(dur)}" start="{fcpt(clip_start)}">'
                 f'<video ref="{aid}"/></clip>'
             )
             total += dur
@@ -278,13 +297,77 @@ def all_clips(event):
         clips.extend((folder_name, p) for p in found)
     return clips
 
+def rebuild_fcpxml_from_log(event_name, event):
+    """Regenerate FCPXMLs from existing log without re-scanning."""
+    log_path = event["log"]
+    out_dir = event["out"]
+    if not log_path.exists():
+        print("No log found — run the full scan first.")
+        return
+    log = json.load(open(log_path))
+    clips_by_subject = {}
+    for key, val in log.items():
+        if not key.startswith("p2:"):
+            continue
+        clip_path = Path(key[3:])
+        frame_results = val.get("frame_results", [])
+        full_dur = clip_duration(clip_path)
+        subjects = set()
+        for f in frame_results:
+            if not f.get("detected"):
+                continue
+            for c in f.get("cars", []):
+                if c.get("confidence", 0) >= 0.5:
+                    for cont in CONTENDERS:
+                        if cont["number"] == c.get("number"):
+                            for d in cont["drivers"]:
+                                if d in ACADEMY_DRIVERS:
+                                    subjects.add(d)
+            for d in f.get("drivers", []):
+                if d.get("confidence", 0) >= 0.4 and d.get("name") in ACADEMY_DRIVERS:
+                    subjects.add(d["name"])
+        for subject in subjects:
+            label = subject.replace(" ", "_")
+            def key_fn(f, min_conf, s=subject):
+                for c in f.get("cars", []):
+                    if c.get("confidence", 0) >= min_conf:
+                        for cont in CONTENDERS:
+                            if cont["number"] == c.get("number") and s in cont["drivers"]:
+                                return True
+                for d in f.get("drivers", []):
+                    if d.get("name") == s and d.get("confidence", 0) >= min_conf:
+                        return True
+                return False
+            windows = find_windows(frame_results, key_fn, min_conf=0.4)
+            if not windows:
+                continue
+            if label not in clips_by_subject:
+                clips_by_subject[label] = []
+            for start, end in windows:
+                clips_by_subject[label].append({
+                    "name": clip_path.stem,
+                    "path": str(clip_path),
+                    "start": start,
+                    "end": min(end, full_dur),
+                    "full_dur": full_dur,
+                })
+    print(f"Regenerating FCPXMLs for {event_name}...")
+    write_fcpxml(out_dir, event_name, clips_by_subject)
+    print("Done.")
+
 def main():
-    if len(sys.argv) < 2 or sys.argv[1] not in EVENTS:
-        print("Usage: python3 silver_scan.py sepang|mandalika")
+    fcpxml_only = "--fcpxml" in sys.argv
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    if not args or args[0] not in EVENTS:
+        print("Usage: python3 silver_scan.py sepang|mandalika [--fcpxml]")
         sys.exit(1)
 
-    event_name = sys.argv[1].capitalize()
-    event = EVENTS[sys.argv[1]]
+    event_name = args[0].capitalize()
+    event = EVENTS[args[0]]
+
+    if fcpxml_only:
+        rebuild_fcpxml_from_log(event_name, event)
+        return
     out_dir, log_path = event["out"], event["log"]
     out_dir.mkdir(parents=True, exist_ok=True)
 
