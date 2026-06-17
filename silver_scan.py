@@ -355,7 +355,7 @@ def subjects_for_clip(frame_results):
                         subjects.add(academy_in_car[0])
     return subjects
 
-def repack(event_name, event):
+def repack(event_name, event, dryrun=False):
     """Clear driver folders and rebuild cleanly from the Phase 2 log."""
     log_path = event["log"]
     out_dir = event["out"]
@@ -364,68 +364,92 @@ def repack(event_name, event):
         return
     log = json.load(open(log_path))
 
-    # Clear only video files from driver folders (._metadata stubs stay, that's fine)
-    for d in out_dir.iterdir():
-        if d.is_dir():
-            removed = 0
-            for f in d.iterdir():
-                if f.suffix.lower() == ".mp4":
-                    f.unlink()
-                    removed += 1
-            print(f"  cleared {removed} clips from {d.name}/")
+    if dryrun:
+        print(f"=== DRYRUN — no files will be touched ===")
+    else:
+        # Clear only video files from driver folders
+        for d in out_dir.iterdir():
+            if d.is_dir():
+                removed = 0
+                for f in d.iterdir():
+                    if f.suffix.lower() == ".mp4":
+                        f.unlink()
+                        removed += 1
+                print(f"  cleared {removed} clips from {d.name}/")
 
+    attribution = {}  # driver -> [clip names]
     clips_by_subject = {}
+    skipped = []
     for key, val in sorted(log.items()):
         if not key.startswith("p2:"):
             continue
         clip_path = Path(key[3:])
-        if not clip_path.exists():
-            continue
         frame_results = val.get("frame_results", [])
-        full_dur = clip_duration(clip_path)
         subjects = subjects_for_clip(frame_results)
+
         if not subjects:
+            all_cars, all_drvs = [], []
+            for f in frame_results:
+                for c in f.get("cars", []):
+                    if c.get("number") is not None:
+                        all_cars.append((c.get("number"), round(c.get("confidence",0),2)))
+                for d in f.get("drivers", []):
+                    if d.get("name"):
+                        all_drvs.append((d.get("name"), round(d.get("confidence",0),2)))
+            if all_cars or all_drvs:
+                skipped.append(f"  SKIP {clip_path.name}: cars={all_cars[:2]} drivers={all_drvs[:2]}")
             continue
 
         for subject in subjects:
-            label = subject.replace(" ", "_")
-            dest_dir = out_dir / label
-            dest_dir.mkdir(parents=True, exist_ok=True)
-            dest = dest_dir / clip_path.name
-            if not dest.exists():
-                shutil.copy2(clip_path, dest)
-            if label not in clips_by_subject:
-                clips_by_subject[label] = []
-            clips_by_subject[label].append({
-                "name": clip_path.stem,
-                "path": str(clip_path),
-                "start": 0.0,
-                "end": full_dur,
-                "full_dur": full_dur,
-            })
+            attribution.setdefault(subject, []).append(clip_path.name)
+
         print(f"  {clip_path.name} → {', '.join(sorted(subjects))}")
 
-    print(f"\nGenerating FCPXMLs for {event_name}...")
-    write_fcpxml(out_dir, event_name, clips_by_subject)
-    total = sum(len(v) for v in clips_by_subject.values())
-    print(f"\nDone — {total} clips across {len(clips_by_subject)} subjects")
+        if not dryrun and clip_path.exists():
+            full_dur = clip_duration(clip_path)
+            for subject in subjects:
+                label = subject.replace(" ", "_")
+                dest_dir = out_dir / label
+                dest_dir.mkdir(parents=True, exist_ok=True)
+                dest = dest_dir / clip_path.name
+                if not dest.exists():
+                    shutil.copy2(clip_path, dest)
+                clips_by_subject.setdefault(label, []).append({
+                    "name": clip_path.stem,
+                    "path": str(clip_path),
+                    "start": 0.0,
+                    "end": full_dur,
+                    "full_dur": full_dur,
+                })
+
+    print(f"\n=== Attribution summary ===")
+    for driver, clips in sorted(attribution.items()):
+        print(f"  {driver}: {len(clips)} clips")
+    if skipped:
+        print(f"\n=== Skipped (detected but below threshold / shared car) ===")
+        for s in skipped[:20]:
+            print(s)
+
+    if not dryrun:
+        print(f"\nGenerating FCPXMLs for {event_name}...")
+        write_fcpxml(out_dir, event_name, clips_by_subject)
+        total = sum(len(v) for v in clips_by_subject.values())
+        print(f"\nDone — {total} clips across {len(clips_by_subject)} subjects")
 
 def main():
     fcpxml_only = "--fcpxml" in sys.argv
     repack_only = "--repack" in sys.argv
+    dryrun = "--dryrun" in sys.argv
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     if not args or args[0] not in EVENTS:
-        print("Usage: python3 silver_scan.py sepang|mandalika [--fcpxml|--repack]")
+        print("Usage: python3 silver_scan.py sepang|mandalika [--repack|--dryrun|--fcpxml]")
         sys.exit(1)
 
     event_name = args[0].capitalize()
     event = EVENTS[args[0]]
 
-    if repack_only:
-        repack(event_name, event)
-        return
-    if fcpxml_only:
-        repack(event_name, event)  # --fcpxml now also repacks cleanly
+    if repack_only or fcpxml_only or dryrun:
+        repack(event_name, event, dryrun=dryrun)
         return
     out_dir, log_path = event["out"], event["log"]
     out_dir.mkdir(parents=True, exist_ok=True)
