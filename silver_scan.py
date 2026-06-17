@@ -285,15 +285,16 @@ def write_fcpxml(out_dir, event_name, clips_by_subject):
         xml_path.write_text(xml)
         print(f"  FCPXML: {xml_path.name} ({len(clips)} clips, {total:.0f}s)")
 
-    # Combined timeline — all unique clips sorted by filename
+    # Combined timeline — grouped by driver in ACADEMY_DRIVERS order, deduplicated
     seen_paths = set()
     all_clips_combined = []
-    for clips in clips_by_subject.values():
-        for c in clips:
+    for driver in ACADEMY_DRIVERS:
+        label = driver.replace(" ", "_")
+        driver_clips = sorted(clips_by_subject.get(label, []), key=lambda c: c["name"])
+        for c in driver_clips:
             if c["path"] not in seen_paths:
                 seen_paths.add(c["path"])
                 all_clips_combined.append(c)
-    all_clips_combined.sort(key=lambda c: c["name"])
     if all_clips_combined:
         xml_path = out_dir / f"{event_name}_ALL_DRIVERS.fcpxml"
         xml, total = build_xml(all_clips_combined, event_name, "ALL_DRIVERS")
