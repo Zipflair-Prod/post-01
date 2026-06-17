@@ -245,41 +245,60 @@ def clip_tc_start(path):
                 pass
     return 0.0
 
+def build_xml(clips, event_name, label):
+    total = 0.0
+    assets, spine = [], []
+    for i, c in enumerate(clips):
+        aid = f"a{i}"
+        dur = c["full_dur"]
+        encoded_path = quote(c["path"], safe="/:")
+        assets.append(
+            f'    <asset id="{aid}" name="{c["name"]}" src="file://{encoded_path}" '
+            f'start="0s" duration="{fcpt(dur)}" hasVideo="1" hasAudio="1"/>'
+        )
+        spine.append(
+            f'      <clip name="{c["name"]}" offset="{fcpt(total)}" '
+            f'duration="{fcpt(dur)}" start="0s">'
+            f'<video ref="{aid}"/></clip>'
+        )
+        total += dur
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE fcpxml>\n'
+        '<fcpxml version="1.10">\n  <resources>\n'
+        '    <format id="r1" name="FFVideoFormat1080p24" frameDuration="1001/24000s" width="1920" height="1080"/>\n'
+        + "\n".join(assets) +
+        '\n  </resources>\n  <library>\n'
+        f'    <event name="{event_name} — {label}">\n'
+        f'      <project name="{event_name}_{label}">\n'
+        f'        <sequence format="r1" duration="{fcpt(total)}" tcStart="0s">\n'
+        '          <spine>\n' + "\n".join(spine) +
+        '\n          </spine>\n        </sequence>\n      </project>\n    </event>\n  </library>\n</fcpxml>'
+    ), total
+
 def write_fcpxml(out_dir, event_name, clips_by_subject):
+    # Per-driver timelines
     for label, clips in clips_by_subject.items():
         if not clips:
             continue
         xml_path = out_dir / f"{event_name}_{label.replace(' ','_')}.fcpxml"
-        total = 0.0
-        assets, spine = [], []
-        for i, c in enumerate(clips):
-            aid = f"a{i}"
-            dur = c["full_dur"]
-            encoded_path = quote(c["path"], safe="/:")
-            assets.append(
-                f'    <asset id="{aid}" name="{c["name"]}" src="file://{encoded_path}" '
-                f'start="0s" duration="{fcpt(dur)}" hasVideo="1" hasAudio="1"/>'
-            )
-            spine.append(
-                f'      <clip name="{c["name"]}" offset="{fcpt(total)}" '
-                f'duration="{fcpt(dur)}" start="0s">'
-                f'<video ref="{aid}"/></clip>'
-            )
-            total += dur
-        xml = (
-            '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE fcpxml>\n'
-            '<fcpxml version="1.10">\n  <resources>\n'
-            '    <format id="r1" name="FFVideoFormat1080p24" frameDuration="1001/24000s" width="1920" height="1080"/>\n'
-            + "\n".join(assets) +
-            '\n  </resources>\n  <library>\n'
-            f'    <event name="{event_name} — {label}">\n'
-            f'      <project name="{event_name}_{label}">\n'
-            f'        <sequence format="r1" duration="{fcpt(total)}" tcStart="0s">\n'
-            '          <spine>\n' + "\n".join(spine) +
-            '\n          </spine>\n        </sequence>\n      </project>\n    </event>\n  </library>\n</fcpxml>'
-        )
+        xml, total = build_xml(clips, event_name, label)
         xml_path.write_text(xml)
         print(f"  FCPXML: {xml_path.name} ({len(clips)} clips, {total:.0f}s)")
+
+    # Combined timeline — all unique clips sorted by filename
+    seen_paths = set()
+    all_clips_combined = []
+    for clips in clips_by_subject.values():
+        for c in clips:
+            if c["path"] not in seen_paths:
+                seen_paths.add(c["path"])
+                all_clips_combined.append(c)
+    all_clips_combined.sort(key=lambda c: c["name"])
+    if all_clips_combined:
+        xml_path = out_dir / f"{event_name}_ALL_DRIVERS.fcpxml"
+        xml, total = build_xml(all_clips_combined, event_name, "ALL_DRIVERS")
+        xml_path.write_text(xml)
+        print(f"  FCPXML: {xml_path.name} ({len(all_clips_combined)} clips, {total:.0f}s) ← combined")
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
