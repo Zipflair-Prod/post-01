@@ -249,23 +249,24 @@ def build_xml(clips, event_name, label):
     total = 0.0
     assets, spine = [], []
     for i, c in enumerate(clips):
-        aid = f"a{i}"
+        aid = f"r{i+2}"  # r1 is reserved for format
         dur = c["full_dur"]
         encoded_path = quote(c["path"], safe="/:")
         assets.append(
-            f'    <asset id="{aid}" name="{c["name"]}" src="file://{encoded_path}" '
-            f'start="0s" duration="{fcpt(dur)}" hasVideo="1" hasAudio="1"/>'
+            f'    <asset id="{aid}" name="{c["name"]}" '
+            f'src="file://{encoded_path}" '
+            f'start="0s" duration="{fcpt(dur)}" '
+            f'hasVideo="1" hasAudio="1" format="r1"/>'
         )
         spine.append(
-            f'      <clip name="{c["name"]}" offset="{fcpt(total)}" '
-            f'duration="{fcpt(dur)}" start="0s">'
-            f'<video ref="{aid}"/></clip>'
+            f'      <clip name="{c["name"]}" ref="{aid}" '
+            f'offset="{fcpt(total)}" duration="{fcpt(dur)}" start="0s"/>'
         )
         total += dur
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE fcpxml>\n'
-        '<fcpxml version="1.10">\n  <resources>\n'
-        '    <format id="r1" name="FFVideoFormat1080p24" frameDuration="1001/24000s" width="1920" height="1080"/>\n'
+        '<fcpxml version="1.9">\n  <resources>\n'
+        '    <format id="r1" name="FFVideoFormat1080p2398" frameDuration="1001/24000s" width="3840" height="2160"/>\n'
         + "\n".join(assets) +
         '\n  </resources>\n  <library>\n'
         f'    <event name="{event_name} — {label}">\n'
