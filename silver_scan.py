@@ -28,6 +28,7 @@ EVENTS = {
         "base":    Path("/Volumes/SSD8/260401 - GTWCA SEPANG/2. ASSETS/2. VIDEOS"),
         "out":     Path("/Volumes/SSD12/Silver_Selects/Sepang"),
         "log":     Path("/Volumes/SSD12/Silver_Selects/sepang_log.json"),
+        "contenders": "sepang",
         "folders": [
             "CARD 1", "CARD 2", "CARD 3", "CARD 4",
             "GTWCA - BOBBY QUALI",
@@ -42,6 +43,7 @@ EVENTS = {
         "base":    Path("/Volumes/SSD12/260509 - GTWCA MANDALIKA/3. MEDIA/VIDEO/FOOTAGE FILMED"),
         "out":     Path("/Volumes/SSD12/Silver_Selects/Mandalika"),
         "log":     Path("/Volumes/SSD12/Silver_Selects/mandalika_log.json"),
+        "contenders": "mandalika",
         "folders": [
             "CARD 3 - PP1", "CARD 4 - PP2", "CARD 5 - PP3", "CARD 9 - FP1",
             "CARD 11.2 - PRE-QUALI", "CARD 14 - QUALI : PIT WALK",
@@ -52,7 +54,8 @@ EVENTS = {
 }
 
 # 7 GT Academy contenders — car number, make, livery, driver name(s)
-CONTENDERS = [
+# Note: James Yu Kuai ran #15 at Sepang, #16 at Mandalika
+CONTENDERS_SEPANG = [
     {"number": 10,  "make": "BMW M4 GT3",              "livery": "blue & gold",         "drivers": ["Maxime Oosten", "Brian Lee"]},
     {"number": 15,  "make": "Audi R8 LMS GT3 EVO II",  "livery": "red & silver",        "drivers": ["James Yu Kuai", "Cheng Congfu"]},
     {"number": 27,  "make": "Mercedes-AMG GT3",         "livery": "white & green",       "drivers": ["Elias Seppanen", "Li Lichao"]},
@@ -60,6 +63,15 @@ CONTENDERS = [
     {"number": 96,  "make": "Ferrari 296 GT3",          "livery": "grey & red",          "drivers": ["Deng Yi", "Kaishun Liu"]},
     {"number": 500, "make": "Nissan GT-R NISMO GT3",    "livery": "white & black Team Szigen", "drivers": ["Atsushi Miyake"]},
 ]
+CONTENDERS_MANDALIKA = [
+    {"number": 10,  "make": "BMW M4 GT3",              "livery": "blue & gold",         "drivers": ["Maxime Oosten", "Brian Lee"]},
+    {"number": 16,  "make": "Audi R8 LMS GT3 EVO II",  "livery": "red & silver",        "drivers": ["James Yu Kuai", "Cheng Congfu"]},
+    {"number": 27,  "make": "Mercedes-AMG GT3",         "livery": "white & green",       "drivers": ["Elias Seppanen", "Li Lichao"]},
+    {"number": 29,  "make": "Lamborghini Huracan GT3",  "livery": "dark navy",           "drivers": ["Akash Neil Nandy"]},
+    {"number": 96,  "make": "Ferrari 296 GT3",          "livery": "grey & red",          "drivers": ["Deng Yi", "Kaishun Liu"]},
+    {"number": 500, "make": "Nissan GT-R NISMO GT3",    "livery": "white & black Team Szigen", "drivers": ["Atsushi Miyake"]},
+]
+CONTENDERS = CONTENDERS_SEPANG  # default; overridden per-event at runtime
 
 ACADEMY_DRIVERS = [
     "James Yu Kuai", "Kaishun Liu", "Maxime Oosten",
@@ -589,6 +601,15 @@ def main():
 
     event_name = args[0].capitalize()
     event = EVENTS[args[0]]
+
+    # Set correct contender list for this event
+    global CONTENDERS, SHARED_CAR_NUMBERS
+    CONTENDERS = CONTENDERS_MANDALIKA if event.get("contenders") == "mandalika" else CONTENDERS_SEPANG
+    SHARED_CAR_NUMBERS = {
+        num for cont in CONTENDERS
+        if sum(1 for d in cont["drivers"] if d in ACADEMY_DRIVERS) > 1
+        for num in [cont["number"]]
+    }
 
     if car_arg:
         extract_car(event_name, event, int(car_arg.split("=")[1]))
